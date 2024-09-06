@@ -11,6 +11,11 @@ _C.SYSTEM.NUM_WORKERS = 4
 
 _C.train = CN()
 _C.train.optimizer = "Adam"
+#禁用严格模式
+_C.set_new_allowed(True)
 
+def get_cfg(cfg_path):
+    config = _C.clone()
 
-def get_cfg()
+    config.merge_from_file(cfg_path)
+    return config
