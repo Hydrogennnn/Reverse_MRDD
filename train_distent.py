@@ -1,25 +1,71 @@
 import argparse
-import torch
-from configs.basic_cfg import get_cfg
 import os
-import torch.distributed as dist
-import numpy as np
-from utils.datatool import (get_val_transformations,
-                            get_train_dataset,
-                            get_val_dataset)
-from torch.utils.data.distributed import DistributedSampler
+import torch
 from torch.utils.data import DataLoader
-from models.independent_VAE import IVAE
+from torchvision.utils import make_grid
+import numpy as np
+from tqdm import tqdm
+import torch.distributed as dist
+from torch.utils.data.distributed import DistributedSampler
+from torchinfo import summary
 from torch.optim import AdamW, lr_scheduler
-import matplotlib.pyplot as plt
+from configs.basic_cfg import get_cfg
+from models.Reverse_MRDD import RMRDD
+
+from utils.metrics import clustering_by_representation
+
+from utils.datatool import (get_val_transformations,
+                      get_train_dataset,
+                      get_val_dataset)
 
 LOCAL_RANK = int(os.getenv('LOCAL_RANK', -1))
 RANK = int(os.getenv('RANK', -1))
 WORLD_SIZE = int(os.getenv('WORLD_SIZE', 1))
 
-def smartprint(*msg):
-    if LOCAL_RANK ==0 or LOCAL_RANK == -1:
-        print(*msg)
+
+@torch.no_grad()
+def valid_by_kmeans(val_dataloader, model, use_ddp, device):
+    targets = []
+    consist_reprs = []
+    vspecific_reprs = []
+    concate_reprs = []
+    for Xs, target in val_dataloader:
+        Xs = [x.to(device) for x in Xs]
+        if use_ddp:
+            consist_repr_, vspecific_repr_, concate_repr_ = model.module.all_features(Xs)
+        else:
+            consist_repr_, vspecific_repr_, concate_repr_ = model.all_features(Xs)
+        targets.append(target)
+        consist_reprs.append(consist_repr_.detach().cpu())
+        vspecific_reprs.append(vspecific_repr_.detach().cpu())
+        concate_reprs.append(concate_repr_.detach().cpu())
+    targets = torch.concat(targets, dim=-1).numpy()
+    consist_reprs = torch.vstack(consist_reprs).detach().cpu().numpy()
+    vspecific_reprs = torch.vstack(vspecific_reprs).detach().cpu().numpy()
+    concate_reprs = torch.vstack(concate_reprs).detach().cpu().numpy()
+    result = {}
+    acc, nmi, ari, _, p, fscore = clustering_by_representation(consist_reprs, targets)
+    result['consist-acc'] = acc
+    result['consist-nmi'] = nmi
+    result['consist-ari'] = ari
+    result['consist-p'] = p
+    result['consist-fscore'] = fscore
+
+    acc, nmi, ari, _, p, fscore = clustering_by_representation(vspecific_reprs, targets)
+    result['vspec-acc'] = acc
+    result['vspec-nmi'] = nmi
+    result['vspec-ari'] = ari
+    result['vspec-p'] = p
+    result['vspec-fscore'] = fscore
+
+    acc, nmi, ari, _, p, fscore = clustering_by_representation(concate_reprs, targets)
+    result['cat-acc'] = acc
+    result['cat-nmi'] = nmi
+    result['cat-ari'] = ari
+    result['cat-p'] = p
+    result['cat-fscore'] = fscore
+    return result
+
 
 
 def get_device(args, local_rank):
@@ -31,17 +77,11 @@ def get_device(args, local_rank):
         ) else torch.device('cpu')
     return device
 
-def init_args():
+def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--config-file', '-f', type=str, help='Config File')
     args = parser.parse_args()
     return args
-
-def init_distributed_mode():
-    # set cuda device
-    torch.cuda.set_device(LOCAL_RANK)
-    dist.init_process_group(
-        backend='nccl' if dist.is_nccl_available() else 'gloo')
 
 def reproducibility_setting(seed):
     """
@@ -56,6 +96,13 @@ def reproducibility_setting(seed):
         torch.cuda.manual_seed_all(seed)
 
     print('Global seed:', seed)
+
+def init_distributed_mode():
+    # set cuda device
+    torch.cuda.set_device(LOCAL_RANK)
+    dist.init_process_group(
+        backend='nccl' if dist.is_nccl_available() else 'gloo')
+
 
 def get_scheduler(args, optimizer):
     """
@@ -74,47 +121,44 @@ def get_scheduler(args, optimizer):
         scheduler = None
     return scheduler
 
-@torch.no_grad()
-def valid_by_kmeans(val_dataloader, model, use_ddp, device):
-
-    for Xs, target in val_dataloader:
-        Xs = [x.to(device) for x in Xs]
-
-
-
+# Only print on main device
+def smartprint(*msg):
+    if LOCAL_RANK == 0 or LOCAL_RANK == -1:
+        print(*msg)
 
 
 
 
 if __name__ == '__main__':
-    # load config
-    args = init_args()
+    args = parse_args()
     config = get_cfg(args.config_file)
 
     use_ddp = config.train.use_ddp
-    result_dir = os.path.join(config.train.log_dir, f"specific-v{config.vspecific.v_dim}")
-    os.makedirs(result_dir, exist_ok=True)
 
+    seed = config.seed
+    result_dir = os.path.join(config.train.log_dir, f'disent-m{config.train.masked_ratio}-v{config.vspecific.v_dim}-c{config.consistency.c_dim}')
+    os.makedirs(result_dir, exist_ok=True)
+    
     if use_ddp:
         os.environ["CUDA_VISIBLE_DEVICES"] = ','.join(
             [str(i) for i in config.train.devices])
+
     device = get_device(config, LOCAL_RANK)
-    print(f'Use: {device}')
+    print(f"Use: {device}")
 
     if use_ddp:
         init_distributed_mode()
-    # for reproducibility
+
     seed = config.seed
     reproducibility_setting(seed)
 
-    checkpoint_path = os.path.join(result_dir, f'checkpoint-{seed}.pth')
-    finalmodel_path = os.path.join(result_dir, f'final_model-{seed}.pth')
-
+    #Load data
     val_transformations = get_val_transformations(config)
     train_dataset = get_train_dataset(config, val_transformations)
-    #prepare data
+
     if use_ddp:
         train_sampler = DistributedSampler(train_dataset)
+
     train_loader = DataLoader(dataset=train_dataset,
                               sampler=train_sampler if use_ddp else None,
                               shuffle=False if use_ddp else True,
@@ -122,10 +166,14 @@ if __name__ == '__main__':
                               pin_memory=True,
                               drop_last=True)
 
-    #Indepent VAE model
-    model = IVAE(args=config, device=device)
+    # Load model
+    model = RMRDD(
+        config=config,
+        specific_encoder_path=config.vspecific.model_path,
+        device=device
+    )
+    # summary(RMRDD)
     smartprint('model loaded!')
-    # Only evaluation on the first device
     if LOCAL_RANK == 0 or LOCAL_RANK == -1:
         val_dataset = get_val_dataset(args=config, transform=val_transformations)
         val_dataloader = DataLoader(val_dataset,
@@ -147,135 +195,88 @@ if __name__ == '__main__':
             device_ids=[LOCAL_RANK],
             output_device=LOCAL_RANK,
             find_unused_parameters=True,
-            broadcast_buffers=False  #模型无缓冲区，减少开销
+            broadcast_buffers=False  # 模型无缓冲区，减少开销
         )
 
     best_loss = np.inf
     old_best_model_path = ""
-    show_train_loss = []
-    show_val_loss = []
+
     for epoch in range(config.train.epochs):
-        lr = optimizer.param_groups[0]['lr']  # acquire the newest lr
+        lr = optimizer.param_groups[0]['lr']
 
         #Train
         if use_ddp:
             train_loader.sampler.set_epoch(epoch)
             model.module.train()
-            parameters = list(model.module.parameters())
         else:
             model.train()
-            parameters = list(model.parameters())
 
-        cur_loss = []
+        show_loss = []
         for Xs, _ in train_loader:
             Xs = [x.to(device) for x in Xs]
-            # assert use_ddp == True
             if use_ddp:
-                losses, details = model.module.get_loss(Xs)
+                loss = model.module.get_loss(Xs)
             else:
-                losses, details = model.get_loss(Xs)
-            loss = torch.stack(losses)
-            loss = torch.mean(loss, dim=0)
-            cur_loss.append(loss.item())
+                loss = model.get_loss(Xs)
 
+
+            show_loss.append(loss.item())
             optimizer.zero_grad()
             loss.backward()
-
             optimizer.step()
 
-        cur_loss = sum(cur_loss) / len(cur_loss)
+        cur_loss = sum(show_loss) / len(show_loss)
+        smartprint(f"[Epoch {epoch}] | Train loss:{cur_loss}")
 
-        show_train_loss.append(cur_loss)
-
-            
-            
-                    
-            
-            
-            
-
-        smartprint(f"[epoch {epoch}]| Train loss: {cur_loss}")
-
-        # Save the best model
+        # Check on main process
         if LOCAL_RANK == 0 or LOCAL_RANK == -1:
             if cur_loss <= best_loss:
-                # Update best_loss
                 best_loss = cur_loss
                 best_model_path = os.path.join(result_dir, f"best-{int(cur_loss)}-{epoch}-{seed}.pth")
+                if use_ddp:
+                    torch.save(model.module.state_dict(), best_model_path)
+                else:
+                    torch.save(model.state_dict(), best_model_path)
                 if old_best_model_path:
                     os.remove(old_best_model_path)
                 old_best_model_path = best_model_path
 
-                if use_ddp:
-                    model.module.eval()
-                    torch.save(model.module.state_dict(), best_model_path)
-                else:
-                    model.eval()
-                    torch.save(model.state_dict(), best_model_path)
-            # Evaluation
-            cur_val_loss = []
-            with torch.no_grad():
-                for Xs, _ in val_dataloader:
-                    Xs = [x.to(device) for x in Xs]
-                    if use_ddp:
-                        losses, details = model.module.get_loss(Xs)
-                    else:
-                        losses, details = model.get_loss(Xs)
-                    
-                    loss = torch.stack(losses)
-                    loss = torch.mean(loss, dim=0)
-                    cur_val_loss.append(loss.item())
-            
-            cur_val_loss = sum(cur_val_loss) / len(cur_val_loss)
-            smartprint(f'Val loss: {cur_val_loss}')
-            show_val_loss.append(cur_val_loss)
-            
-                    
-                    
+        if scheduler is not None:
+            scheduler.step()
 
-
-
-
-        # Update learning rate
-        # if scheduler is not None:
-        #     scheduler.step()
-
-
-        # Evaluation of each epoch
+        # Evaluation
         if LOCAL_RANK == 0 or LOCAL_RANK == -1:
             if use_ddp:
                 model.module.eval()
             else:
                 model.eval()
 
-            kmeans_result = valid_by_kmeans(val_dataloader, model, use_ddp, device)
+            with torch.no_grad():
+                val_loss = []
+                for Xs,_ in val_dataloader:
+                    Xs = [x.to(device) for x in Xs]
+                    if use_ddp:
+                        val_loss.append(model.module.get_loss(Xs).item())
+                    else:
+                        val_loss.append(model.get_loss(Xs).item())
+                print(f"| Validate loss:{sum(val_loss)/len(val_loss)}")
 
-        # Process syn
+            kmeans_result = valid_by_kmeans(val_dataloader=val_dataloader,
+                                            model=model,
+                                            device=device,
+                                            use_ddp=use_ddp)
+            print(f"[Evaluation {epoch}/{config.train.epochs}]",
+                  ', '.join([f'{k}:{v:.4f}' for k, v in kmeans_result.items()]))
+
         if use_ddp:
             dist.barrier()
 
+    final_model_path = os.path.join(result_dir, f"final_model-{seed}.pth")
     if LOCAL_RANK == 0 or LOCAL_RANK == -1:
-
-        plt.scatter(range(len(show_train_loss)), show_train_loss, color='blue', label='Train loss')
-        plt.scatter(range(len(show_val_loss)), show_val_loss, color='red', label='Val loss')
-
-        plt.xlabel('Epoch')
-        plt.ylabel('Loss')
-
-        plt.legend()
-        plt.savefig('loss.png')
-
-
-
-
-
-
-
-
-            
-
-            
-
+        if use_ddp:
+            torch.save(model.module.state_dict(), final_model_path)
+        else:
+            torch.save(model.state_dict(), final_model_path)
 
 
 

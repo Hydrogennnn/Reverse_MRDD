@@ -1,17 +1,59 @@
+experiment_name: "EdgeMNIST"
+views: 2
+dataset:
+  class_num: 10
+
 
 train:
-  epochs: 200
-  # 64, 128, 512, 1024
-  devices: [0]
-  batch_size: 256
-  optim: "adamw"
+  epochs: 100
+  
+  use_ddp: True
+  devices: [0, 1, 2]
+  batch_size: 1024 # 64, 128, 512, 1024
   num_workers: 8
-  lr: 0.0005
+  lr: 0.001
+  optim: "adamw"
   evaluate: 1
-  use_ddp: false
+
   scheduler: 'consine'
   samples_num: 8
   resume: false
   masked_ratio: 0.7
   mask_patch_size: 4
+
+vspecific:
+  v_dim: 10
+  latent_ch: 8
+  num_res_blocks: 3
+  block_size: 8
+  in_channel: 1
+  basic_hidden_dim: 16
+  ch_mult: [1, 2, 4]
+  kld_weight: 0.5
+  best_view: 0
+  model_path: './experiments/EdgeMNIST/specific-v10/best-6422-99-3407.pth'
+
+
+consistency:
+  continous: True
+  c_dim: 20
+  in_channel: 1
+  ch_mult: [ 1, 2, 4 ]
+  block_size: 8
+  basic_hidden_dim: 16
+  latent_ch: 8
+  num_res_blocks: 3
+  kld_weight: 1.0
+  alpha: 1.0
+  temperature: 0.5
+
+
+
+disent:
+  hidden_size: 100
+
+
+
+
+
 

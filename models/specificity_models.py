@@ -4,7 +4,7 @@ import torch
 from torch import nn
 from torch.nn import init
 
-from .autoencoder import Encoder, Decoder
+from .autoencoders import Encoder, Decoder
 from .resnet import resnet18, resnet34, resnet50
 
 
@@ -113,7 +113,7 @@ class ViewSpecificAE(nn.Module):
         """
         Encodes the input by passing through the encoder network
         and returns the latent codes.
-        :param x: (Tensor) Input tensor to encoder [N x C x H x W]
+        :param x: (Tensor) Input tensor to encoder [Batch_size x C x H x W]
         :return: (Tensor) List of latent codes
         """
         latent = self._encoder(x)
@@ -153,14 +153,16 @@ class ViewSpecificAE(nn.Module):
         return self.decode(z), mu, logvar
     
     
-    def get_loss(self, x, y):
+    def get_loss(self, x, y=None):
         out, mu, logvar = self(x, y)
-        
+
         recons_loss = self.recons_criterion(out, x)
         
         kld_loss = self.kld_weight * (torch.mean(-0.5 * torch.sum(1 + logvar - mu ** 2 - logvar.exp(), dim=1), dim=0))
-        return recons_loss, kld_loss
-    
+
+        return recons_loss, kld_loss # Torch.size([])  (mean loss of batch)
+
+
     
     def sample(self, num_samples, y):
         """
@@ -175,4 +177,4 @@ class ViewSpecificAE(nn.Module):
         z = torch.cat([z, y], dim=1).to(self.device)
         samples = self.decode(z)
         return samples
-    
+
