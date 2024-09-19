@@ -159,7 +159,7 @@ class ConsistencyAE(nn.Module):
         
     
     
-    def get_loss(self, Xs,Ys, mask_ratio, mask_patch_size):
+    def get_loss(self, Xs, Ys, mask_ratio, mask_patch_size):
         """
         :param Xs: original data
         :param Ys: [s_1, s_2, ..., s_m]
@@ -179,11 +179,7 @@ class ConsistencyAE(nn.Module):
             sub_recon_loss = F.mse_loss(x, recons)
             recon_loss += sub_recon_loss
 
-        loss = recon_loss + kld_loss
-
-        return loss
-
-
+        return recon_loss, kld_loss
 
 
 

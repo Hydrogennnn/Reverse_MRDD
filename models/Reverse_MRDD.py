@@ -49,20 +49,27 @@ class RMRDD(nn.Module):
         assert len(Xs) == self.views
         spe_repr = self.vspecific_features(Xs)
         con_repr = self.consistency_features(Xs)
-        # kld loss & reconstruction loss of each view
-        loss = self.cons_enc.get_loss(Xs=Xs,
+        return_details = {}
+        
+        # kld loss & reconstruction loss
+        recon_loss, kld_loss = self.cons_enc.get_loss(Xs=Xs,
                                       Ys=spe_repr,
                                       mask_ratio=self.config.train.masked_ratio,
                                       mask_patch_size=self.config.train.mask_patch_size
                                       )
+        return_details['kld_loss'] = kld_loss.item()
+        return_details['recon_loss'] = recon_loss.item()
 
         # MI loss
+        disent_loss = 0.
         for i in range(self.views):
             mi_est = self.__getattr__(f"mi_est_{i+1}")
-            disent_loss = mi_est.learning_loss(spe_repr[i], con_repr)
-            loss += disent_loss
+            disent_loss += mi_est.learning_loss(spe_repr[i], con_repr)
+        disent_loss = 1.0 / disent_loss
+        return_details['disent_loss'] = disent_loss.item()
 
-        return loss
+
+        return recon_loss+kld_loss+disent_loss, return_details
 
     def forward(self, Xs):
         con_repr = self.cons_enc(Xs)

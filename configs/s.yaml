@@ -51,7 +51,8 @@ consistency:
 
 disent:
   hidden_size: 100
-
+  mi_w: 0.001
+git
 
 
 
