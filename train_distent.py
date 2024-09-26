@@ -203,6 +203,7 @@ if __name__ == '__main__':
 
     for epoch in range(config.train.epochs):
         lr = optimizer.param_groups[0]['lr']
+        smartprint("lr:"+str(lr))
 
         #Train
         if use_ddp:
@@ -215,9 +216,9 @@ if __name__ == '__main__':
         for Xs, _ in train_loader:
             Xs = [x.to(device) for x in Xs]
             if use_ddp:
-                loss = model.module.get_loss(Xs)
+                loss, details = model.module.get_loss(Xs)
             else:
-                loss = model.get_loss(Xs)
+                loss, details = model.get_loss(Xs)
 
 
             show_loss.append(loss.item())
@@ -227,6 +228,8 @@ if __name__ == '__main__':
 
         cur_loss = sum(show_loss) / len(show_loss)
         smartprint(f"[Epoch {epoch}] | Train loss:{cur_loss}")
+        for k, v in details.items():
+            smartprint(f"{k}:{v}")
 
         # Check on main process
         if LOCAL_RANK == 0 or LOCAL_RANK == -1:
@@ -256,9 +259,9 @@ if __name__ == '__main__':
                 for Xs,_ in val_dataloader:
                     Xs = [x.to(device) for x in Xs]
                     if use_ddp:
-                        val_loss.append(model.module.get_loss(Xs).item())
+                        val_loss.append(model.module.get_loss(Xs)[0].item())
                     else:
-                        val_loss.append(model.get_loss(Xs).item())
+                        val_loss.append(model.get_loss(Xs)[0].item())
                 print(f"| Validate loss:{sum(val_loss)/len(val_loss)}")
 
             kmeans_result = valid_by_kmeans(val_dataloader=val_dataloader,

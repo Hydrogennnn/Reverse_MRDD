@@ -156,6 +156,7 @@ if __name__ == '__main__':
     show_val_loss = []
     for epoch in range(config.train.epochs):
         lr = optimizer.param_groups[0]['lr']  # acquire the newest lr
+        smartprint("lr:"+str(lr))
 
         #Train
         if use_ddp:
@@ -167,6 +168,7 @@ if __name__ == '__main__':
             parameters = list(model.parameters())
 
         cur_loss = []
+        details = {}
         for Xs, _ in train_loader:
             Xs = [x.to(device) for x in Xs]
             # assert use_ddp == True
@@ -186,12 +188,9 @@ if __name__ == '__main__':
         cur_loss = sum(cur_loss) / len(cur_loss)
 
         show_train_loss.append(cur_loss)
-
-            
-            
-                    
-            
-            
+        
+        for k, v in details.items():
+            smartprint(f"{k}:{v:.4f}")
             
 
         smartprint(f"[epoch {epoch}]| Train loss: {cur_loss}")
@@ -226,6 +225,7 @@ if __name__ == '__main__':
                     loss = torch.mean(loss, dim=0)
                     cur_val_loss.append(loss.item())
             
+
             cur_val_loss = sum(cur_val_loss) / len(cur_val_loss)
             smartprint(f'Val loss: {cur_val_loss}')
             show_val_loss.append(cur_val_loss)
