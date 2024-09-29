@@ -47,7 +47,7 @@ class IVAE(nn.Module):
             return_details[f"v{i+1}_total-loss"] = loss.item()
             losses.append(loss)
         return losses, return_details
-
+    
 
 
 

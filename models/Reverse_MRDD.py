@@ -1,8 +1,9 @@
 import torch
 import torch.nn as nn
+import numpy as np
 from .independent_VAE import IVAE
 from .consistency_models import ConsistencyAE
-from .mi_estimators import CLUBSample
+from .mine import Estimator
 
 class RMRDD(nn.Module):
     def __init__(self, config, specific_encoder_path = None, device = 'cpu'):
@@ -42,8 +43,8 @@ class RMRDD(nn.Module):
         )
 
         # mutual information estimation
-        for i in range(self.views):
-            self.__setattr__(f"mi_est_{i+1}", CLUBSample(self.c_dim, self.v_dim, hidden_size=self.config.disent.hidden_size))
+        # for i in range(self.views):
+        #     self.__setattr__(f"mi_est_{i+1}", Estimator(config.specific.v_dim, config.consistency.c_dim))
     def get_loss(self, Xs):
         # extract specific-views
         assert len(Xs) == self.views
@@ -62,12 +63,13 @@ class RMRDD(nn.Module):
 
         # MI loss
         disent_loss = 0.
+        mu_c, logvar_c = self.consistency_latent_dist(Xs)
         for i in range(self.views):
-            mi_est = self.__getattr__(f"mi_est_{i+1}")
-            disent_loss += mi_est.learning_loss(spe_repr[i], con_repr)
-        disent_loss = 1.0 / disent_loss
+            mu_s, logvar_s = self.specific_latent_dist(Xs[i], i)
+            mi_est = Estimator(x_dim=self.config.vspecific.v_dim, y_dim=self.config.consistency.c_dim, device=self.device)
+            disent_loss += mi_est.learning_loss(mu_s, torch.exp(0.5*logvar_s), mu_c, torch.exp(0.5*logvar_c))
+        disent_loss = 1000.0 / disent_loss
         return_details['disent_loss'] = disent_loss.item()
-
 
         return recon_loss+kld_loss+disent_loss, return_details
 
@@ -80,6 +82,14 @@ class RMRDD(nn.Module):
         V = spe_repr[self.config.vspecific.best_view]
         return C, V, torch.cat([C, V], dim=-1)
 
+    @torch.no_grad()
+    def specific_latent_dist(self, x, v): # distribution of view v
+        mu, logvar = self.spe_enc.__getattr__(f"venc_{v+1}").encode(x)
+        return mu, logvar
+
+    def consistency_latent_dist(self, Xs):
+        mu, logvar = self.cons_enc.encode(Xs)
+        return mu, logvar
 
     @torch.no_grad()
     def consistency_features(self, Xs):

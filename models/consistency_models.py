@@ -83,7 +83,7 @@ class ConsistencyAE(nn.Module):
         #     # discrete code.
         #     self.fc_z = nn.Linear(self.latent_ch * self.block_size ** 2, self.c_dim * self.categorical_dim)
         #     self.to_decoder_input = nn.Linear(self.c_dim * self.categorical_dim, self.latent_ch * self.block_size **2)
-            
+        
     def forward(self, Xs):
     
         if self.continous:
@@ -148,7 +148,7 @@ class ConsistencyAE(nn.Module):
             mu, logvar = torch.split(z, self.c_dim, dim=1)
             return mu, logvar
         else:
-            return z.view(-1, self.c_dim, self.categorical_dim)
+            perror("not continous")
 
     def decode(self, z, idx):
         z = self.to_decoder_input(z)
@@ -163,7 +163,7 @@ class ConsistencyAE(nn.Module):
         """
         :param Xs: original data
         :param Ys: [s_1, s_2, ..., s_m]
-        :return: total loss
+        :return: 
         """
         # Masked cross-view distribution modeling.
         Xs_masked = [mask_image(x, mask_patch_size, mask_ratio=mask_ratio) for x in Xs]
@@ -174,14 +174,13 @@ class ConsistencyAE(nn.Module):
         z = self.cont_reparameterize(mu, logvar)  # B x c_dim
         recon_loss = 0.
         for i, x in enumerate(Xs):
-            z_s = torch.cat([z, Ys[i]],dim=1)
+            z_s = torch.cat([z, Ys[i]],dim=1) # B x (c_dim+v_dim)
             recons = self.decode(z_s, i) # result of reconstruction
-            sub_recon_loss = F.mse_loss(x, recons)
+            sub_recon_loss = F.mse_loss(x, recons, reduction='sum')
+            
             recon_loss += sub_recon_loss
 
         return recon_loss, kld_loss
-
-
 
         # else:
         #     beta = self.encode(Xs_masked)
@@ -208,7 +207,7 @@ class ConsistencyAE(nn.Module):
     
     
     def con_loss(self, mu, log_var):
-        kld_loss = torch.mean(-0.5 * torch.sum(1 + log_var - mu ** 2 - log_var.exp(), dim = 1), dim = 0)
+        kld_loss = torch.mean(-0.5 * torch.sum(1 + log_var - mu ** 2 - log_var.exp(), dim = 1), dim = 0)  # batch mean
         return self.kld_weight * kld_loss
 
         

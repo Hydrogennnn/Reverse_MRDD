@@ -41,7 +41,7 @@ class ViewSpecificAE(nn.Module):
         self.kld_weight = kld_weight
         self.build_encoder_and_decoder()
                
-        self.recons_criterion = nn.MSELoss(reduction='sum')
+        self.recons_criterion = nn.MSELoss(reduction='mean')
         # self.recons_criterion = nn.MSELoss()
         # self.apply(self.weights_init(init_type=init_method))
         
@@ -121,7 +121,7 @@ class ViewSpecificAE(nn.Module):
         z = self.to_dist_layer(latent)
         mu, logvar = torch.split(z, self.v_dim, dim=1)
 
-        return [mu, logvar]
+        return mu, logvar
 
     def decode(self, z):
         z = self.to_decoder_input(z)
