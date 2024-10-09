@@ -20,6 +20,8 @@ train:
   resume: false
   masked_ratio: 0.7
   mask_patch_size: 4
+  mask_view: True
+  mask_view_ratio: 0.15
 
 vspecific:
   v_dim: 10
