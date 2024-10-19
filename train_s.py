@@ -1,5 +1,7 @@
 import argparse
 import torch
+import wandb
+from tqdm import tqdm
 from configs.basic_cfg import get_cfg
 import os
 import torch.distributed as dist
@@ -11,6 +13,8 @@ from torch.utils.data.distributed import DistributedSampler
 from torch.utils.data import DataLoader
 from models.independent_VAE import IVAE
 from torch.optim import AdamW, lr_scheduler
+from collections import defaultdict
+
 import matplotlib.pyplot as plt
 
 LOCAL_RANK = int(os.getenv('LOCAL_RANK', -1))
@@ -74,15 +78,11 @@ def get_scheduler(args, optimizer):
         scheduler = None
     return scheduler
 
-@torch.no_grad()
-def valid_by_kmeans(val_dataloader, model, use_ddp, device):
-
-    for Xs, target in val_dataloader:
-        Xs = [x.to(device) for x in Xs]
-
-
-
-
+# @torch.no_grad()
+# def valid_by_kmeans(val_dataloader, model, use_ddp, device):
+#
+#     for Xs, target in val_dataloader:
+#         Xs = [x.to(device) for x in Xs]
 
 
 
@@ -90,9 +90,9 @@ if __name__ == '__main__':
     # load config
     args = init_args()
     config = get_cfg(args.config_file)
-
+    use_wandb = config.wandb
     use_ddp = config.train.use_ddp
-    result_dir = os.path.join(config.train.log_dir, f"specific-v{config.vspecific.v_dim}")
+    result_dir = os.path.join(config.train.log_dir, f"{config.experiment_name}-specific-v{config.vspecific.v_dim}-mv{config.train.mask_view_ratio if config.train.mask_view else 0.0}")
     os.makedirs(result_dir, exist_ok=True)
 
     if use_ddp:
@@ -125,6 +125,12 @@ if __name__ == '__main__':
     #Indepent VAE model
     model = IVAE(args=config, device=device)
     smartprint('model loaded!')
+
+    if use_wandb:
+        wandb.init(project=config.project_name,
+                   config=config,
+                   name=f'{config.experiment_name}-iVAE-c{config.consistency.c_dim}-mv{config.train.mask_view_ratio if config.train.mask_view else 0.0}-{seed}')
+
     # Only evaluation on the first device
     if LOCAL_RANK == 0 or LOCAL_RANK == -1:
         val_dataset = get_val_dataset(args=config, transform=val_transformations)
@@ -152,8 +158,6 @@ if __name__ == '__main__':
 
     best_loss = np.inf
     old_best_model_path = ""
-    show_train_loss = []
-    show_val_loss = []
     for epoch in range(config.train.epochs):
         lr = optimizer.param_groups[0]['lr']  # acquire the newest lr
         smartprint("lr:"+str(lr))
@@ -167,40 +171,37 @@ if __name__ == '__main__':
             model.train()
             parameters = list(model.parameters())
 
-        cur_loss = []
+        cur_loss = defaultdict(list)
+
         details = {}
-        for Xs, _ in train_loader:
+        for Xs, _ in tqdm(train_loader):
             Xs = [x.to(device) for x in Xs]
             # assert use_ddp == True
             if use_ddp:
-                losses, details = model.module.get_loss(Xs)
+                loss, details = model.module.get_loss(Xs, config.train.mask_view, config.train.mask_view_ratio)
             else:
-                losses, details = model.get_loss(Xs)
-            loss = torch.stack(losses)
-            loss = torch.mean(loss, dim=0)
-            cur_loss.append(loss.item())
+                loss, details = model.get_loss(Xs, config.train.mask_view, config.train.mask_view_ratio)
 
             optimizer.zero_grad()
             loss.backward()
-
             optimizer.step()
+            for k, v in details.items():
+                cur_loss[k].append(v)
 
-        cur_loss = sum(cur_loss) / len(cur_loss)
-
-        show_train_loss.append(cur_loss)
-        
-        for k, v in details.items():
+        show_losses = {k: np.mean(v) for k, v in cur_loss.items()}
+        if use_wandb:
+            wandb.log(show_losses, step=epoch)
+        for k, v in show_losses.items():
             smartprint(f"{k}:{v:.4f}")
-            
 
-        smartprint(f"[epoch {epoch}]| Train loss: {cur_loss}")
+        smartprint(f"[epoch {epoch}]| Train loss: {loss.item()}")
 
         # Save the best model
         if LOCAL_RANK == 0 or LOCAL_RANK == -1:
-            if cur_loss <= best_loss:
+            if loss <= best_loss:
                 # Update best_loss
-                best_loss = cur_loss
-                best_model_path = os.path.join(result_dir, f"best-{int(cur_loss)}-{epoch}-{seed}.pth")
+                best_loss = loss
+                best_model_path = os.path.join(result_dir, f"best-{int(loss.item())}-{epoch}-{seed}.pth")
                 if old_best_model_path:
                     os.remove(old_best_model_path)
                 old_best_model_path = best_model_path
@@ -212,33 +213,24 @@ if __name__ == '__main__':
                     model.eval()
                     torch.save(model.state_dict(), best_model_path)
             # Evaluation
-            cur_val_loss = []
+            val_loss = []
             with torch.no_grad():
                 for Xs, _ in val_dataloader:
                     Xs = [x.to(device) for x in Xs]
                     if use_ddp:
-                        losses, details = model.module.get_loss(Xs)
+                        loss, details = model.module.get_loss(Xs, config.train.mask_view, config.train.mask_view_ratio)
                     else:
-                        losses, details = model.get_loss(Xs)
-                    
-                    loss = torch.stack(losses)
-                    loss = torch.mean(loss, dim=0)
-                    cur_val_loss.append(loss.item())
-            
+                        loss, details = model.get_loss(Xs, config.train.mask_view, config.train.mask_view_ratio)
 
-            cur_val_loss = sum(cur_val_loss) / len(cur_val_loss)
+                    val_loss.append(loss.item())
+
+            cur_val_loss = np.mean(val_loss)
             smartprint(f'Val loss: {cur_val_loss}')
-            show_val_loss.append(cur_val_loss)
             
-                    
-                    
-
-
-
 
         # Update learning rate
-        # if scheduler is not None:
-        #     scheduler.step()
+        if scheduler is not None:
+            scheduler.step()
 
 
         # Evaluation of each epoch
@@ -248,23 +240,12 @@ if __name__ == '__main__':
             else:
                 model.eval()
 
-            kmeans_result = valid_by_kmeans(val_dataloader, model, use_ddp, device)
-
+            # kmeans_result = valid_by_kmeans(val_dataloader, model, use_ddp, device)
+            # if use_wandb:
+            #     wandb.log(kmeans_result)
         # Process syn
         if use_ddp:
             dist.barrier()
-
-    if LOCAL_RANK == 0 or LOCAL_RANK == -1:
-
-        plt.scatter(range(len(show_train_loss)), show_train_loss, color='blue', label='Train loss')
-        plt.scatter(range(len(show_val_loss)), show_val_loss, color='red', label='Val loss')
-
-        plt.xlabel('Epoch')
-        plt.ylabel('Loss')
-
-        plt.legend()
-        plt.savefig('loss.png')
-
 
 
 

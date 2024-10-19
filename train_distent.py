@@ -11,9 +11,9 @@ from torchinfo import summary
 from torch.optim import AdamW, lr_scheduler
 from configs.basic_cfg import get_cfg
 from models.Reverse_MRDD import RMRDD
-
+import wandb
 from utils.metrics import clustering_by_representation
-
+from collections import defaultdict
 from utils.datatool import (get_val_transformations,
                       get_train_dataset,
                       get_val_dataset)
@@ -134,9 +134,9 @@ if __name__ == '__main__':
     config = get_cfg(args.config_file)
 
     use_ddp = config.train.use_ddp
-
+    use_wandb = config.wandb
     seed = config.seed
-    result_dir = os.path.join(config.train.log_dir, f'disent-m{config.train.masked_ratio}-v{config.vspecific.v_dim}-c{config.consistency.c_dim}')
+    result_dir = os.path.join(config.train.log_dir, f'disent-v{config.vspecific.v_dim}-c{config.consistency.c_dim}-mv{config.train.mask_view_ratio if config.train.mask_view else 0.0}-{seed}')
     os.makedirs(result_dir, exist_ok=True)
     
     if use_ddp:
@@ -172,6 +172,10 @@ if __name__ == '__main__':
         specific_encoder_path=config.vspecific.model_path,
         device=device
     )
+
+    wandb.init(project=config.project_name,
+               config=config,
+               name=f'{config.experiment_name}-disent-c{config.consistency.c_dim}--v{config.vspecific.v_dim}-mv{config.train.mask_view_ratio if config.train.mask_view else 0.0}-{seed}')
     # summary(RMRDD)
     smartprint('model loaded!')
     if LOCAL_RANK == 0 or LOCAL_RANK == -1:
@@ -212,23 +216,26 @@ if __name__ == '__main__':
         else:
             model.train()
 
-        show_loss = []
-        for Xs, _ in train_loader:
+        cur_loss = defaultdict(list)
+        for Xs, _ in tqdm(train_loader):
             Xs = [x.to(device) for x in Xs]
             if use_ddp:
                 loss, details = model.module.get_loss(Xs)
             else:
                 loss, details = model.get_loss(Xs)
 
-
-            show_loss.append(loss.item())
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
+            for k,v in details.items():
+                cur_loss[k].append(v)
 
-        cur_loss = sum(show_loss) / len(show_loss)
-        smartprint(f"[Epoch {epoch}] | Train loss:{cur_loss}")
-        for k, v in details.items():
+        show_losses = {k: np.mean(v) for k, v in cur_loss.items()}
+
+        if use_wandb:
+            wandb.log(show_losses, step=epoch)
+        smartprint(f"[Epoch {epoch}] | Train loss:{loss.item()}")
+        for k, v in show_losses.items():
             smartprint(f"{k}:{v}")
 
         # Check on main process
@@ -268,6 +275,9 @@ if __name__ == '__main__':
                                             model=model,
                                             device=device,
                                             use_ddp=use_ddp)
+
+            if use_wandb:
+                wandb.log(kmeans_result)
             print(f"[Evaluation {epoch}/{config.train.epochs}]",
                   ', '.join([f'{k}:{v:.4f}' for k, v in kmeans_result.items()]))
 

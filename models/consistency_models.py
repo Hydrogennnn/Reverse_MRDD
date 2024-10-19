@@ -3,7 +3,8 @@ from torch import nn
 from torch.nn import functional as F
 import numpy as np
 import torch.distributions as dist
-
+from utils.misc import mask_view
+import torch.nn.functional as F
 # import sys
 # sys.path.append('/home/xyzhang/guanzhouke/cvpr24/src/models')
 # from autoencoder import Encoder, Decoder
@@ -50,15 +51,15 @@ class ConsistencyAE(nn.Module):
         self.alpha = alpha
         
         
-        self._encoder = Encoder(hidden_dim=self.basic_hidden_dim, 
-                                in_channels=self.in_channel, 
-                                z_channels=self.latent_ch, 
-                                ch_mult=self.ch_mult, 
-                                num_res_blocks=self.num_res_blocks, 
-                                resolution=1, 
-                                use_attn=False, 
+        self._encoder = nn.ModuleList([Encoder(hidden_dim=self.basic_hidden_dim,
+                                in_channels=self.in_channel,
+                                z_channels=self.latent_ch,
+                                ch_mult=self.ch_mult,
+                                num_res_blocks=self.num_res_blocks,
+                                resolution=1,
+                                use_attn=False,
                                 attn_resolutions=None,
-                                double_z=False)
+                                double_z=False) for _ in range(self.views)])
         # self._encoder = resnet18(pretrained=False, in_channel=self.in_channel, output_layer=6)
     
         self.decoders = nn.ModuleList([Decoder(hidden_dim=self.basic_hidden_dim, 
@@ -83,6 +84,8 @@ class ConsistencyAE(nn.Module):
         #     # discrete code.
         #     self.fc_z = nn.Linear(self.latent_ch * self.block_size ** 2, self.c_dim * self.categorical_dim)
         #     self.to_decoder_input = nn.Linear(self.c_dim * self.categorical_dim, self.latent_ch * self.block_size **2)
+        self.gates = nn.Linear(512 * self.views, self.views)
+        self.experts = [nn.Linear(512, self.c_dim * 2) for _ in range(self.views)]
         
     def forward(self, Xs):
     
@@ -137,18 +140,24 @@ class ConsistencyAE(nn.Module):
         :return: (Tensor) List of latent codes
         """
         latents = []
-        for x in Xs:
-            latent = self._encoder(x) # z x 78 x 78
+        expert_output = []
+        for i, x in Xs:
+            latent = self._encoder[i](x) # z x 78 x 78
             latent = torch.flatten(latent, start_dim=1) # z x 554
+            expert_output.append(self.experts[i](latent))
             latents.append(latent)
-        # mutimodal fusion
+        # Multi-modal Fusion
         latent = torch.cat(latents, dim=-1) # z x 554m
-        z = self.fc_z(latent)
+        # Mixture of Experts
+        gate_score = F.softmax(self.gates(), dim=-1)
+        experts_output = torch.stack(expert_output, dim=1)
+        output = torch.bmm(gate_score.unsqueeze(1), experts_output).squeeze(1)  # (Batch_size, 2)
+
+        assert self.continous
         if self.continous:
-            mu, logvar = torch.split(z, self.c_dim, dim=1)
+            mu, logvar = torch.split(output, self.c_dim, dim=1)
             return mu, logvar
-        else:
-            perror("not continous")
+
 
     def decode(self, z, idx):
         z = self.to_decoder_input(z)
@@ -165,6 +174,9 @@ class ConsistencyAE(nn.Module):
         :param Ys: [s_1, s_2, ..., s_m]
         :return: 
         """
+        #Mask view
+        if self.config.mask_view:
+            Xs = mask_view(Xs, self.config.train.mask_view_ratio, self.views)
         # Masked cross-view distribution modeling.
         Xs_masked = [mask_image(x, mask_patch_size, mask_ratio=mask_ratio) for x in Xs]
 

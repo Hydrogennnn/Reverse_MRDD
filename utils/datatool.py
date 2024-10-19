@@ -7,7 +7,7 @@ import numpy as np
 import random
 from PIL import Image
 import os
-
+import json
 import cv2
 # provent the depandency of multiple threads.
 cv2.ocl.setUseOpenCL(False)
@@ -679,14 +679,29 @@ def get_train_dataset(args, transform):
     return train_set
 
 
+def get_mask_val(config, valset):
+    file_path = os.path.join("./MaskView", config.dataset.name + ".json")
+    # Read the file
+    assert os.path.exists(file_path)
+    with open(file_path, "r") as file:
+        data = json.load(file)
+        random_indices, random_views = data['indices'], data['views']
+    for idx, v in zip(random_indices, random_views):
+        valset[idx][0][v] = torch.zeros(valset[idx][0][v].shape)
+
+    return valset
+
+
 def get_val_dataset(args, transform):
     data_class = __dataset_dict.get(args.dataset.name, None)
     if data_class is None:
         raise ValueError("Dataset name error.")
     val_set = data_class(root=args.dataset.root, train=False,
                          transform=transform, views=args.views)
-
-    return val_set
+    if args.train.val_mask_view:
+        return get_mask_val(args, val_set)
+    else:
+        return val_set
 
 
 if __name__ == '__main__':

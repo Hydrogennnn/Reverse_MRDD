@@ -1,7 +1,7 @@
 from .specificity_models import ViewSpecificAE
 import torch.nn as nn
 import torch
-
+from utils.misc import mask_view
 class IVAE(nn.Module):
     def __init__(self, args, device = 'cpu'):
         super(IVAE, self).__init__()
@@ -22,8 +22,6 @@ class IVAE(nn.Module):
                                                              kld_weight=self.args.vspecific.kld_weight,
                                                              device=self.device))
 
-
-
     def forward(self, Xs):
         outs = []
         for i in range(self.views): #each view
@@ -33,9 +31,10 @@ class IVAE(nn.Module):
 
         return outs
 
-    def get_loss(self, Xs):
+    def get_loss(self, Xs, _mask_view, mask_view_ratio):
+        if _mask_view:
+            Xs = mask_view(Xs,mask_view_ratio, self.views)
         return_details = {}
-        losses = []
         for i in range(self.views):
             venc = self.__getattr__(f"venc_{i+1}")
             recon_loss, kld_loss = venc.get_loss(Xs[i])
@@ -45,8 +44,9 @@ class IVAE(nn.Module):
 
             loss = kld_loss + recon_loss
             return_details[f"v{i+1}_total-loss"] = loss.item()
-            losses.append(loss)
-        return losses, return_details
+        return loss, return_details
+
+
     
 
 

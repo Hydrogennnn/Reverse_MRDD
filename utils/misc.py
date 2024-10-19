@@ -1,6 +1,19 @@
 import torch
 import numpy as np
+import random
 
+
+def mask_view(Xs, mask_ratio, views):
+    # print('mask_view')
+    batch_size = Xs[0].shape[0]
+    num_to_select = int(batch_size*mask_ratio)
+    random_indices = random.sample(range(batch_size),num_to_select)
+
+    for i in random_indices:
+        v = random.randint(0, views - 1) #randomly select a view
+        Xs[v][i] = torch.zeros(Xs[0].shape[1:])
+
+    return Xs
 
 def get_masked(batch_size, shapes, missing_rate):
     """Randomly generate incomplete data information, simulate partial view data with complete view data.

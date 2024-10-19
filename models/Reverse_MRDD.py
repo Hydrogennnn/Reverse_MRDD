@@ -49,7 +49,7 @@ class RMRDD(nn.Module):
         # extract specific-views
         assert len(Xs) == self.views
         spe_repr = self.vspecific_features(Xs)
-        con_repr = self.consistency_features(Xs)
+
         return_details = {}
         
         # kld loss & reconstruction loss
@@ -63,11 +63,15 @@ class RMRDD(nn.Module):
 
         # MI loss
         disent_loss = 0.
-        mu_c, logvar_c = self.consistency_latent_dist(Xs)
+        mu_c, logvar_c = self.cons_enc.encode(Xs)
+        C = self.reparameterize(mu_c, logvar_c)
+
         for i in range(self.views):
             mu_s, logvar_s = self.specific_latent_dist(Xs[i], i)
             mi_est = Estimator(x_dim=self.config.vspecific.v_dim, y_dim=self.config.consistency.c_dim, device=self.device)
-            disent_loss += mi_est.learning_loss(mu_s, torch.exp(0.5*logvar_s), mu_c, torch.exp(0.5*logvar_c))
+            mu_c_detached, logvar_c_detached = mu_c.detach(), logvar_c.detach()
+            mi_est.learning_loss(mu_s, torch.exp(0.5*logvar_s), mu_c_detached, torch.exp(0.5*logvar_c_detached))
+            disent_loss += mi_est.get_loss(mu_s, torch.exp(0.5*logvar_s), mu_c, torch.exp(0.5*logvar_c))
         disent_loss = 1000.0 / disent_loss
         return_details['disent_loss'] = disent_loss.item()
 
@@ -75,6 +79,7 @@ class RMRDD(nn.Module):
 
     def forward(self, Xs):
         con_repr = self.cons_enc(Xs)
+        return con_repr
 
     def all_features(self, Xs):
         C = self.consistency_features(Xs)
@@ -87,6 +92,7 @@ class RMRDD(nn.Module):
         mu, logvar = self.spe_enc.__getattr__(f"venc_{v+1}").encode(x)
         return mu, logvar
 
+    @torch.no_grad()
     def consistency_latent_dist(self, Xs):
         mu, logvar = self.cons_enc.encode(Xs)
         return mu, logvar
@@ -95,7 +101,6 @@ class RMRDD(nn.Module):
     def consistency_features(self, Xs):
         consist_feature = self.cons_enc.consistency_features(Xs)
         return consist_feature
-
 
     @torch.no_grad()
     def vspecific_features(self, Xs, best_view=False):
@@ -109,6 +114,18 @@ class RMRDD(nn.Module):
         else:
             return vspecific_features
 
+
+    def reparameterize(self, mu, logvar):
+        """
+        Will a single z be enough ti compute the expectation
+        for the loss??
+        :param mu: (Tensor) Mean of the latent Gaussian
+        :param logvar: (Tensor) Standard deviation of the latent Gaussian
+        :return:
+        """
+        std = torch.exp(0.5 * logvar)
+        eps = torch.randn_like(std)
+        return eps * std + mu
 
 
 

@@ -72,14 +72,14 @@ class Estimator():
             x_sample, y_sample = x_sample.to(self.device), y_sample.to(self.device)
             loss = self.net(x_sample, y_sample)
             self.optimizer.zero_grad()
-            
-            if epoch ==n_epoch-1:
-                loss.backward(retain_graph=true)
-            else:
-                loss.backward()
+            loss.backward()
             self.optimizer.step()
-        
-        return -loss
+
+    def get_loss(self, mu_x, var_x, mu_y, var_y):
+        x_sample = sample_data(mu_x, var_x)
+        y_sample = sample_data(mu_y, var_y)
+        x_sample, y_sample = x_sample.to(self.device), y_sample.to(self.device)
+        return self.net(x_sample, y_sample)
     
         
     
