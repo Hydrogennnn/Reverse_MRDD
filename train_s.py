@@ -78,11 +78,11 @@ def get_scheduler(args, optimizer):
         scheduler = None
     return scheduler
 
-# @torch.no_grad()
-# def valid_by_kmeans(val_dataloader, model, use_ddp, device):
-#
-#     for Xs, target in val_dataloader:
-#         Xs = [x.to(device) for x in Xs]
+@torch.no_grad()
+def valid_by_kmeans(val_dataloader, model, use_ddp, device):
+
+    for Xs, target in val_dataloader:
+        Xs = [x.to(device) for x in Xs]
 
 
 

@@ -175,7 +175,7 @@ class ConsistencyAE(nn.Module):
         :return: 
         """
         #Mask view
-        if self.config.mask_view:
+        if self.config.train.mask_view:
             Xs = mask_view(Xs, self.config.train.mask_view_ratio, self.views)
         # Masked cross-view distribution modeling.
         Xs_masked = [mask_image(x, mask_patch_size, mask_ratio=mask_ratio) for x in Xs]
