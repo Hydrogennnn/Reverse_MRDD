@@ -54,10 +54,12 @@ class RMRDD(nn.Module):
         
         # kld loss & reconstruction loss
         recon_loss, kld_loss = self.cons_enc.get_loss(Xs=Xs,
-                                      Ys=spe_repr,
-                                      mask_ratio=self.config.train.masked_ratio,
-                                      mask_patch_size=self.config.train.mask_patch_size
-                                      )
+                                                      Ys=spe_repr,
+                                                      mask_ratio=self.config.train.masked_ratio,
+                                                      mask_patch_size=self.config.train.mask_patch_size,
+                                                      _mask_view=self.config.train.mask_view,
+                                                      mask_view_ratio=self.config.train.mask_view_ratio
+                                                      )
         return_details['kld_loss'] = kld_loss.item()
         return_details['recon_loss'] = recon_loss.item()
 

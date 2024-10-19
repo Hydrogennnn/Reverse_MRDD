@@ -168,15 +168,15 @@ class ConsistencyAE(nn.Module):
         
     
     
-    def get_loss(self, Xs, Ys, mask_ratio, mask_patch_size):
+    def get_loss(self, Xs, Ys, mask_ratio, mask_patch_size, _mask_view, mask_view_ratio):
         """
         :param Xs: original data
         :param Ys: [s_1, s_2, ..., s_m]
         :return: 
         """
         #Mask view
-        if self.config.train.mask_view:
-            Xs = mask_view(Xs, self.config.train.mask_view_ratio, self.views)
+        if _mask_view:
+            Xs = mask_view(Xs, mask_view_ratio, self.views)
         # Masked cross-view distribution modeling.
         Xs_masked = [mask_image(x, mask_patch_size, mask_ratio=mask_ratio) for x in Xs]
 
