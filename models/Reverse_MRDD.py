@@ -44,9 +44,10 @@ class RMRDD(nn.Module):
 
         # mutual information estimation
         for i in range(self.views):
-            self.__setattr__(f"mi_est_{i+1}", Estimator(x_dim=config.specific.v_dim,
+            self.__setattr__(f"mi_est_{i+1}", Estimator(x_dim=config.vspecific.v_dim,
                                                         y_dim=config.consistency.c_dim,
                                                         device=device))
+            print(f"mi_est_{i+1}")
 
 
     def get_loss(self, Xs):
@@ -73,7 +74,7 @@ class RMRDD(nn.Module):
 
         for i in range(self.views):
             mu_s, logvar_s = self.specific_latent_dist(Xs[i], i)
-            mi_est = self.__getattr__(f"mi_est_{i+1}")
+            mi_est = self.__getattribute__(f"mi_est_{i+1}")
             mi_est.learning_loss(mu_s, torch.exp(0.5*logvar_s), mu_c, torch.exp(0.5*logvar_c))
             disent_loss += mi_est.get_loss(mu_s, torch.exp(0.5*logvar_s), mu_c, torch.exp(0.5*logvar_c))
         disent_loss = 1000.0 / disent_loss

@@ -240,9 +240,9 @@ if __name__ == '__main__':
 
         # Check on main process
         if LOCAL_RANK == 0 or LOCAL_RANK == -1:
-            if cur_loss <= best_loss:
-                best_loss = cur_loss
-                best_model_path = os.path.join(result_dir, f"best-{int(cur_loss)}-{epoch}-{seed}.pth")
+            if loss <= best_loss:
+                best_loss = loss
+                best_model_path = os.path.join(result_dir, f"best-{int(loss.item())}-{epoch}-{seed}.pth")
                 if use_ddp:
                     torch.save(model.module.state_dict(), best_model_path)
                 else:

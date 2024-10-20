@@ -5,31 +5,9 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 
 
-# SIGNAL_NOISE = 0.2
-# SIGNAL_POWER = 3
-
-# data_dim = 3
-# num_instances = 20000
-
-
 def sample_data(mu, var):
     eps = torch.rand_like(mu)
     return mu + eps*var
-
-# def gen_x(num, dim):
-#     return np.random.normal(0., np.sqrt(SIGNAL_POWER), [num, dim])
-
-
-# def gen_y(x, num, dim):
-#     return x + np.random.normal(0., np.sqrt(SIGNAL_NOISE), [num, dim])
-
-
-# def true_mi(power, noise, dim):
-#     return dim * 0.5 * np.log2(1 + power/noise)
-
-
-# mi = true_mi(SIGNAL_POWER, SIGNAL_NOISE, data_dim)
-# print('True MI:', mi)
 n_epoch = 500
 
 
