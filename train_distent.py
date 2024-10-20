@@ -136,7 +136,7 @@ if __name__ == '__main__':
     use_ddp = config.train.use_ddp
     use_wandb = config.wandb
     seed = config.seed
-    result_dir = os.path.join(config.train.log_dir, f'disent-v{config.vspecific.v_dim}-c{config.consistency.c_dim}-mv{config.train.mask_view_ratio if config.train.mask_view else 0.0}-{seed}')
+    result_dir = os.path.join(config.train.log_dir, f'{config.experiment_name}-disent-v{config.vspecific.v_dim}-c{config.consistency.c_dim}-mv{config.train.mask_view_ratio if config.train.mask_view else 0.0}-{seed}')
     os.makedirs(result_dir, exist_ok=True)
     
     if use_ddp:
