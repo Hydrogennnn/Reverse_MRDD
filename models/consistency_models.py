@@ -85,7 +85,7 @@ class ConsistencyAE(nn.Module):
         #     self.fc_z = nn.Linear(self.latent_ch * self.block_size ** 2, self.c_dim * self.categorical_dim)
         #     self.to_decoder_input = nn.Linear(self.c_dim * self.categorical_dim, self.latent_ch * self.block_size **2)
         self.gates = nn.Linear(512 * self.views, self.views)
-        self.experts = [nn.Linear(512, self.c_dim * 2) for _ in range(self.views)]
+        self.experts = nn.ModuleList([nn.Linear(512, self.c_dim * 2) for _ in range(self.views)])
         
     def forward(self, Xs):
     
@@ -141,15 +141,16 @@ class ConsistencyAE(nn.Module):
         """
         latents = []
         expert_output = []
-        for i, x in Xs:
+        for i, x in enumerate(Xs):
             latent = self._encoder[i](x) # z x 78 x 78
             latent = torch.flatten(latent, start_dim=1) # z x 554
             expert_output.append(self.experts[i](latent))
             latents.append(latent)
         # Multi-modal Fusion
         latent = torch.cat(latents, dim=-1) # z x 554m
+        
         # Mixture of Experts
-        gate_score = F.softmax(self.gates(), dim=-1)
+        gate_score = F.softmax(self.gates(latent), dim=-1)
         experts_output = torch.stack(expert_output, dim=1)
         output = torch.bmm(gate_score.unsqueeze(1), experts_output).squeeze(1)  # (Batch_size, 2)
 
