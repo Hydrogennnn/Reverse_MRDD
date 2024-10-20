@@ -79,7 +79,7 @@ def get_scheduler(args, optimizer):
     return scheduler
 
 @torch.no_grad()
-def valid_by_kmeans(val_dataloader, model, use_ddp, views, device):
+def valid_by_kmeans(val_dataloader, model, use_ddp, device):
     _repr = defaultdict(list)
     targets = []
     for Xs, target in val_dataloader:
@@ -248,9 +248,9 @@ if __name__ == '__main__':
             smartprint(f'Val loss: {cur_val_loss}')
             
 
-        # Update learning rate
-        if scheduler is not None:
-            scheduler.step()
+        # # Update learning rate
+        # if scheduler is not None:
+        #     scheduler.step()
 
 
         # Evaluation of each epoch

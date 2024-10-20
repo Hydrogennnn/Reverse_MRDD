@@ -41,7 +41,7 @@ class ViewSpecificAE(nn.Module):
         self.kld_weight = kld_weight
         self.build_encoder_and_decoder()
                
-        self.recons_criterion = nn.MSELoss(reduction='mean')
+        self.recons_criterion = nn.MSELoss(reduction='sum')
         # self.recons_criterion = nn.MSELoss()
         # self.apply(self.weights_init(init_type=init_method))
         
