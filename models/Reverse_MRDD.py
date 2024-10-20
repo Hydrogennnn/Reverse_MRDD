@@ -43,8 +43,12 @@ class RMRDD(nn.Module):
         )
 
         # mutual information estimation
-        # for i in range(self.views):
-        #     self.__setattr__(f"mi_est_{i+1}", Estimator(config.specific.v_dim, config.consistency.c_dim))
+        for i in range(self.views):
+            self.__setattr__(f"mi_est_{i+1}", Estimator(x_dim=config.specific.v_dim,
+                                                        y_dim=config.consistency.c_dim,
+                                                        device=device))
+
+
     def get_loss(self, Xs):
         # extract specific-views
         assert len(Xs) == self.views
@@ -66,13 +70,11 @@ class RMRDD(nn.Module):
         # MI loss
         disent_loss = 0.
         mu_c, logvar_c = self.cons_enc.encode(Xs)
-        C = self.reparameterize(mu_c, logvar_c)
 
         for i in range(self.views):
             mu_s, logvar_s = self.specific_latent_dist(Xs[i], i)
-            mi_est = Estimator(x_dim=self.config.vspecific.v_dim, y_dim=self.config.consistency.c_dim, device=self.device)
-            mu_c_detached, logvar_c_detached = mu_c.detach(), logvar_c.detach()
-            mi_est.learning_loss(mu_s, torch.exp(0.5*logvar_s), mu_c_detached, torch.exp(0.5*logvar_c_detached))
+            mi_est = self.__getattr__(f"mi_est_{i+1}")
+            mi_est.learning_loss(mu_s, torch.exp(0.5*logvar_s), mu_c, torch.exp(0.5*logvar_c))
             disent_loss += mi_est.get_loss(mu_s, torch.exp(0.5*logvar_s), mu_c, torch.exp(0.5*logvar_c))
         disent_loss = 1000.0 / disent_loss
         return_details['disent_loss'] = disent_loss.item()

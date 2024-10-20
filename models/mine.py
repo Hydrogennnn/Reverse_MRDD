@@ -43,14 +43,11 @@ class Estimator():
         self.device = device
     
     def learning_loss(self, mu_x, var_x, mu_y, var_y):
-        for epoch in tqdm(range(n_epoch)):
-            x_sample = sample_data(mu_x, var_x)
-            y_sample = sample_data(mu_y, var_y)
-            x_sample, y_sample = x_sample.to(self.device), y_sample.to(self.device)
-            loss = self.net(x_sample, y_sample)
-            self.optimizer.zero_grad()
-            loss.backward()
-            self.optimizer.step()
+        x_sample = sample_data(mu_x, var_x)
+        y_sample = sample_data(mu_y, var_y)
+        x_sample, y_sample = x_sample.to(self.device), y_sample.to(self.device)
+        loss = self.net(x_sample, y_sample)
+        return loss
 
     def get_loss(self, mu_x, var_x, mu_y, var_y):
         x_sample = sample_data(mu_x, var_x)
