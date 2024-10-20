@@ -14,7 +14,7 @@ from torch.utils.data import DataLoader
 from models.independent_VAE import IVAE
 from torch.optim import AdamW, lr_scheduler
 from collections import defaultdict
-
+from utils.metrics import clustering_by_representation
 import matplotlib.pyplot as plt
 
 LOCAL_RANK = int(os.getenv('LOCAL_RANK', -1))
@@ -79,11 +79,31 @@ def get_scheduler(args, optimizer):
     return scheduler
 
 @torch.no_grad()
-def valid_by_kmeans(val_dataloader, model, use_ddp, device):
-
+def valid_by_kmeans(val_dataloader, model, use_ddp, views, device):
+    _repr = defaultdict(list)
+    targets = []
     for Xs, target in val_dataloader:
         Xs = [x.to(device) for x in Xs]
+        if use_ddp:
+            spe_repr = model.module.vspecific_features(Xs)
+        else:
+            spe_repr = model.vspecific_features(Xs)
 
+        for i, r in enumerate(spe_repr):
+            _repr[i].append(r)
+        targets.append(target)
+
+    targets = targets = torch.concat(targets, dim=-1).numpy()
+    result = {}
+    for i, key in enumerate(_repr.keys()):
+        spe_repr = torch.vstack(_repr[key]).detach().cpu().numpy()
+        acc, nmi, ari, _, p, fscore = clustering_by_representation(spe_repr, targets)
+        result[f'vspe{i}-acc'] = acc
+        result[f'vspe{i}-nmi'] = nmi
+        result[f'vspe{i}-ari'] = ari
+        result[f'vspe{i}-p'] = p
+        result[f'vspe{i}-fscore'] = fscore
+    return result
 
 
 if __name__ == '__main__':
@@ -240,9 +260,10 @@ if __name__ == '__main__':
             else:
                 model.eval()
 
-            # kmeans_result = valid_by_kmeans(val_dataloader, model, use_ddp, device)
-            # if use_wandb:
-            #     wandb.log(kmeans_result)
+            kmeans_result = valid_by_kmeans(val_dataloader, model, use_ddp, device)
+            smartprint(f"[Evaluation {epoch}/{config.train.epochs}]", ', '.join([f'{k}:{v:.4f}' for k, v in kmeans_result.items()]))
+            if use_wandb:
+                wandb.log(kmeans_result)
         # Process syn
         if use_ddp:
             dist.barrier()

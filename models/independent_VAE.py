@@ -46,6 +46,18 @@ class IVAE(nn.Module):
             return_details[f"v{i+1}_total-loss"] = loss.item()
         return loss, return_details
 
+    @torch.no_grad()
+    def vspecific_features(self, Xs, best_view=False):
+        vspecific_features = []
+        for i in range(self.views):
+            venc = self.__getattr__(f"venc_{i + 1}")
+            feature = venc.latent(Xs[i])
+            vspecific_features.append(feature)
+        if best_view:
+            return vspecific_features[self.config.best_view]
+        else:
+            return vspecific_features
+
 
     
 
