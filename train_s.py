@@ -233,19 +233,19 @@ if __name__ == '__main__':
                     model.eval()
                     torch.save(model.state_dict(), best_model_path)
             # Evaluation
-            val_loss = []
-            with torch.no_grad():
-                for Xs, _ in val_dataloader:
-                    Xs = [x.to(device) for x in Xs]
-                    if use_ddp:
-                        loss, details = model.module.get_loss(Xs, config.train.mask_view, config.train.mask_view_ratio)
-                    else:
-                        loss, details = model.get_loss(Xs, config.train.mask_view, config.train.mask_view_ratio)
+            # val_loss = []
+            # with torch.no_grad():
+            #     for Xs, _ in val_dataloader:
+            #         Xs = [x.to(device) for x in Xs]
+            #         if use_ddp:
+            #             loss, details = model.module.get_loss(Xs, config.train.mask_view, config.train.mask_view_ratio)
+            #         else:
+            #             loss, details = model.get_loss(Xs, config.train.mask_view, config.train.mask_view_ratio)
 
-                    val_loss.append(loss.item())
+            #         val_loss.append(loss.item())
 
-            cur_val_loss = np.mean(val_loss)
-            smartprint(f'Val loss: {cur_val_loss}')
+            # cur_val_loss = np.mean(val_loss)
+            # smartprint(f'Val loss: {cur_val_loss}')
             
 
         # # Update learning rate
@@ -267,6 +267,15 @@ if __name__ == '__main__':
         # Process syn
         if use_ddp:
             dist.barrier()
+    
+    final_model_path = os.path.join(result_dir,f"final_model-{config.seed}")
+    if use_ddp:
+        model.module.eval()
+        torch.save(model.module.state_dict(), final_model_path)
+    else:
+        model.eval()
+        torch.save(model.state_dict(), final_model_path)
+        
 
 
 

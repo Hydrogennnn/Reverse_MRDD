@@ -283,6 +283,7 @@ if __name__ == '__main__':
 
         if use_ddp:
             dist.barrier()
+    
 
     final_model_path = os.path.join(result_dir, f"final_model-{seed}.pth")
     if LOCAL_RANK == 0 or LOCAL_RANK == -1:
