@@ -43,11 +43,9 @@ class RMRDD(nn.Module):
         )
 
         # mutual information estimation
-        for i in range(self.views):
-            self.__setattr__(f"mi_est_{i+1}", Estimator(x_dim=config.vspecific.v_dim,
-                                                        y_dim=config.consistency.c_dim,
-                                                        device=device))
-            print(f"mi_est_{i+1}")
+        self.mi_est = [Estimator(x_dim=config.vspecific.v_dim,
+                                                y_dim=config.consistency.c_dim,
+                                                device=device) for _ in range(self.views) ]
 
 
     def get_loss(self, Xs):
@@ -65,19 +63,22 @@ class RMRDD(nn.Module):
                                                       _mask_view=self.config.train.mask_view,
                                                       mask_view_ratio=self.config.train.mask_view_ratio
                                                       )
+        print('recon_loss:', recon_loss.item(), 'kld_poss:', kld_loss.item())
         return_details['kld_loss'] = kld_loss.item()
         return_details['recon_loss'] = recon_loss.item()
 
         # MI loss
-        disent_loss = 0.
+        tot_disent_loss = 0.
         mu_c, logvar_c = self.cons_enc.encode(Xs)
 
         for i in range(self.views):
             mu_s, logvar_s = self.specific_latent_dist(Xs[i], i)
-            mi_est = self.__getattribute__(f"mi_est_{i+1}")
-            mi_est.learning_loss(mu_s, torch.exp(0.5*logvar_s), mu_c, torch.exp(0.5*logvar_c))
-            disent_loss += mi_est.get_loss(mu_s, torch.exp(0.5*logvar_s), mu_c, torch.exp(0.5*logvar_c))
-        disent_loss = 1000.0 / disent_loss
+            mi_est = self.mi_est[i]
+            cur_disent_loss = mi_est.learning_loss(mu_s, torch.exp(0.5*logvar_s), mu_c, torch.exp(0.5*logvar_c))
+            tot_disent_loss += cur_disent_loss
+            print('cur_disent:', cur_disent_loss.item())
+        print('tot_disent:', tot_disent_loss.item())
+        disent_loss = 1000.0 / tot_disent_loss
         return_details['disent_loss'] = disent_loss.item()
 
         return recon_loss+kld_loss+disent_loss, return_details

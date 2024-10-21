@@ -172,10 +172,10 @@ if __name__ == '__main__':
         specific_encoder_path=config.vspecific.model_path,
         device=device
     )
-
-    wandb.init(project=config.project_name,
-               config=config,
-               name=f'{config.experiment_name}-disent-c{config.consistency.c_dim}--v{config.vspecific.v_dim}-mv{config.train.mask_view_ratio if config.train.mask_view else 0.0}-{seed}')
+    if use_wandb:
+        wandb.init(project=config.project_name,
+                config=config,
+                name=f'{config.experiment_name}-disent-c{config.consistency.c_dim}--v{config.vspecific.v_dim}-mv{config.train.mask_view_ratio if config.train.mask_view else 0.0}-{seed}')
     # summary(RMRDD)
     smartprint('model loaded!')
     if LOCAL_RANK == 0 or LOCAL_RANK == -1:
@@ -251,8 +251,8 @@ if __name__ == '__main__':
                     os.remove(old_best_model_path)
                 old_best_model_path = best_model_path
 
-        if scheduler is not None:
-            scheduler.step()
+        # if scheduler is not None:
+        #     scheduler.step()
 
         # Evaluation
         if LOCAL_RANK == 0 or LOCAL_RANK == -1:

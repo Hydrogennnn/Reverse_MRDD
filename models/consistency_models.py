@@ -144,14 +144,14 @@ class ConsistencyAE(nn.Module):
         for i, x in enumerate(Xs):
             latent = self._encoder[i](x) # z x 78 x 78
             latent = torch.flatten(latent, start_dim=1) # z x 554
-            expert_output.append(self.experts[i](latent))
+            expert_output.append(self.experts[i](latent)) #[(b,2c)....]
             latents.append(latent)
         # Multi-modal Fusion
-        latent = torch.cat(latents, dim=-1) # z x 554m
+        latent = torch.cat(latents, dim=-1) #(b, 512*m)
         
         # Mixture of Experts
-        gate_score = F.softmax(self.gates(latent), dim=-1)
-        experts_output = torch.stack(expert_output, dim=1)
+        gate_score = F.softmax(self.gates(latent), dim=-1) #(b, m)
+        experts_output = torch.stack(expert_output, dim=1) #(b,m,2c)
         output = torch.bmm(gate_score.unsqueeze(1), experts_output).squeeze(1)  # (Batch_size, 2)
 
         assert self.continous
@@ -180,8 +180,8 @@ class ConsistencyAE(nn.Module):
             Xs = mask_view(Xs, mask_view_ratio, self.views)
         # Masked cross-view distribution modeling.
         Xs_masked = [mask_image(x, mask_patch_size, mask_ratio=mask_ratio) for x in Xs]
-
         mu, logvar = self.encode(Xs_masked)
+        print('mu:', mu,'logvar', logvar)
         kld_loss = self.con_loss(mu, logvar)
     
         z = self.cont_reparameterize(mu, logvar)  # B x c_dim
