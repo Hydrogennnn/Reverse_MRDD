@@ -16,7 +16,6 @@ from models.independent_VAE import IVAE
 from torch.optim import AdamW, lr_scheduler
 from collections import defaultdict
 from utils.metrics import clustering_by_representation
-import matplotlib.pyplot as plt
 
 LOCAL_RANK = int(os.getenv('LOCAL_RANK', -1))
 RANK = int(os.getenv('RANK', -1))
@@ -113,7 +112,8 @@ if __name__ == '__main__':
     config = get_cfg(args.config_file)
     use_wandb = config.wandb
     use_ddp = config.train.use_ddp
-    result_dir = os.path.join(config.train.log_dir, f"{config.experiment_name}-specific-v{config.vspecific.v_dim}-mv{config.train.mask_view_ratio if config.train.mask_view else 0.0}")
+    
+    result_dir = os.path.join(config.train.log_dir, f"{config.experiment_name}-specific-v{config.vspecific.v_dim}-mv{config.train.mask_view_ratio if config.train.mask_view else 0.0}-{"modal missing" if config.train.val_mask_view else "full modal"}")
     os.makedirs(result_dir, exist_ok=True)
 
     if use_ddp:
@@ -150,7 +150,7 @@ if __name__ == '__main__':
     if use_wandb:
         wandb.init(project=config.project_name,
                    config=config,
-                   name=f'{config.experiment_name}-iVAE-c{config.consistency.c_dim}-mv{config.train.mask_view_ratio if config.train.mask_view else 0.0}-{seed}')
+                   name=f'{config.experiment_name}-iVAE-c{config.consistency.c_dim}-mv{config.train.mask_view_ratio if config.train.mask_view else 0.0}-{"modal missing" if config.train.mask_view else "full modal"}-{seed}')
 
     # Only evaluation on the first device
     if LOCAL_RANK == 0 or LOCAL_RANK == -1:

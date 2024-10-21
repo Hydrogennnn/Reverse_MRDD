@@ -139,7 +139,7 @@ if __name__ == '__main__':
     use_wandb = config.wandb
     seed = config.seed
     result_dir = os.path.join(config.train.log_dir,
-                              f'{config.experiment_name}-disent-v{config.vspecific.v_dim}-c{config.consistency.c_dim}-mv{config.train.mask_view_ratio if config.train.mask_view else 0.0}-{seed}')
+                              f'{config.experiment_name}-disent-v{config.vspecific.v_dim}-c{config.consistency.c_dim}-mv{config.train.mask_view_ratio if config.train.mask_view else 0.0}-{seed}-{"modal missing" if config.train.val_mask_view else "full modal"}')
     os.makedirs(result_dir, exist_ok=True)
 
     if use_ddp:
@@ -178,7 +178,7 @@ if __name__ == '__main__':
 
     wandb.init(project=config.project_name,
                config=config,
-               name=f'{config.experiment_name}-disent-c{config.consistency.c_dim}--v{config.vspecific.v_dim}-mv{config.train.mask_view_ratio if config.train.mask_view else 0.0}-{seed}')
+               name=f'{config.experiment_name}-rmrdd-c{config.consistency.c_dim}--v{config.vspecific.v_dim}-mv{config.train.mask_view_ratio if config.train.mask_view else 0.0}-{"modal missing" if config.train.mask_view else "full modal"}-{seed}')
     # summary(RMRDD)
     smartprint('model loaded!')
     if LOCAL_RANK == 0 or LOCAL_RANK == -1:
