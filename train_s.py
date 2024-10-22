@@ -8,14 +8,14 @@ import torch.distributed as dist
 import numpy as np
 from utils.datatool import (get_val_transformations,
                             get_train_dataset,
-                            get_val_dataset)
+                            get_val_dataset,
+                            get_mask_val)
 from torch.utils.data.distributed import DistributedSampler
 from torch.utils.data import DataLoader
 from models.independent_VAE import IVAE
 from torch.optim import AdamW, lr_scheduler
 from collections import defaultdict
 from utils.metrics import clustering_by_representation
-import matplotlib.pyplot as plt
 
 LOCAL_RANK = int(os.getenv('LOCAL_RANK', -1))
 RANK = int(os.getenv('RANK', -1))
@@ -93,7 +93,7 @@ def valid_by_kmeans(val_dataloader, model, use_ddp, device):
             _repr[i].append(r)
         targets.append(target)
 
-    targets = targets = torch.concat(targets, dim=-1).numpy()
+    targets = torch.concat(targets, dim=-1).numpy()
     result = {}
     for i, key in enumerate(_repr.keys()):
         spe_repr = torch.vstack(_repr[key]).detach().cpu().numpy()
@@ -112,7 +112,8 @@ if __name__ == '__main__':
     config = get_cfg(args.config_file)
     use_wandb = config.wandb
     use_ddp = config.train.use_ddp
-    result_dir = os.path.join(config.train.log_dir, f"{config.experiment_name}-specific-v{config.vspecific.v_dim}-mv{config.train.mask_view_ratio if config.train.mask_view else 0.0}")
+    
+    result_dir = os.path.join(config.train.log_dir, f"{config.experiment_name}-specific-v{config.vspecific.v_dim}-mv{config.train.mask_view_ratio if config.train.mask_view else 0.0}-{"modal missing" if config.train.val_mask_view else "full modal"}")
     os.makedirs(result_dir, exist_ok=True)
 
     if use_ddp:
@@ -149,11 +150,14 @@ if __name__ == '__main__':
     if use_wandb:
         wandb.init(project=config.project_name,
                    config=config,
-                   name=f'{config.experiment_name}-iVAE-c{config.consistency.c_dim}-mv{config.train.mask_view_ratio if config.train.mask_view else 0.0}-{seed}')
+                   name=f'{config.experiment_name}-iVAE-c{config.consistency.c_dim}-mv{config.train.mask_view_ratio if config.train.mask_view else 0.0}-{"modal missing" if config.train.mask_view else "full modal"}-{seed}')
 
     # Only evaluation on the first device
     if LOCAL_RANK == 0 or LOCAL_RANK == -1:
-        val_dataset = get_val_dataset(args=config, transform=val_transformations)
+        if config.train.val_mask_view:
+            val_dataset = get_val_dataset(args=config, transform=val_transformations)
+        else:
+            val_dataset = get_mask_val(config, val_transformations)
         val_dataloader = DataLoader(val_dataset,
                                     batch_size=config.train.batch_size // WORLD_SIZE,
                                     num_workers=config.train.num_workers,
@@ -268,7 +272,7 @@ if __name__ == '__main__':
         if use_ddp:
             dist.barrier()
     
-    final_model_path = os.path.join(result_dir,f"final_model-{config.seed}")
+    final_model_path = os.path.join(result_dir, f"final_model-{config.seed}")
     if use_ddp:
         model.module.eval()
         torch.save(model.module.state_dict(), final_model_path)

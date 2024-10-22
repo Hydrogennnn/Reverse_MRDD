@@ -15,8 +15,9 @@ import wandb
 from utils.metrics import clustering_by_representation
 from collections import defaultdict
 from utils.datatool import (get_val_transformations,
-                      get_train_dataset,
-                      get_val_dataset)
+                            get_train_dataset,
+                            get_val_dataset,
+                            get_mask_val)
 
 LOCAL_RANK = int(os.getenv('LOCAL_RANK', -1))
 RANK = int(os.getenv('RANK', -1))
@@ -67,7 +68,6 @@ def valid_by_kmeans(val_dataloader, model, use_ddp, device):
     return result
 
 
-
 def get_device(args, local_rank):
     if args.train.use_ddp:
         device = torch.device(
@@ -77,11 +77,13 @@ def get_device(args, local_rank):
         ) else torch.device('cpu')
     return device
 
+
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--config-file', '-f', type=str, help='Config File')
     args = parser.parse_args()
     return args
+
 
 def reproducibility_setting(seed):
     """
@@ -96,6 +98,7 @@ def reproducibility_setting(seed):
         torch.cuda.manual_seed_all(seed)
 
     print('Global seed:', seed)
+
 
 def init_distributed_mode():
     # set cuda device
@@ -121,12 +124,11 @@ def get_scheduler(args, optimizer):
         scheduler = None
     return scheduler
 
+
 # Only print on main device
 def smartprint(*msg):
     if LOCAL_RANK == 0 or LOCAL_RANK == -1:
         print(*msg)
-
-
 
 
 if __name__ == '__main__':
@@ -136,9 +138,10 @@ if __name__ == '__main__':
     use_ddp = config.train.use_ddp
     use_wandb = config.wandb
     seed = config.seed
-    result_dir = os.path.join(config.train.log_dir, f'{config.experiment_name}-disent-v{config.vspecific.v_dim}-c{config.consistency.c_dim}-mv{config.train.mask_view_ratio if config.train.mask_view else 0.0}-{seed}')
+    result_dir = os.path.join(config.train.log_dir,
+                              f'{config.experiment_name}-disent-v{config.vspecific.v_dim}-c{config.consistency.c_dim}-mv{config.train.mask_view_ratio if config.train.mask_view else 0.0}-{seed}-{"modal missing" if config.train.val_mask_view else "full modal"}')
     os.makedirs(result_dir, exist_ok=True)
-    
+
     if use_ddp:
         os.environ["CUDA_VISIBLE_DEVICES"] = ','.join(
             [str(i) for i in config.train.devices])
@@ -152,7 +155,7 @@ if __name__ == '__main__':
     seed = config.seed
     reproducibility_setting(seed)
 
-    #Load data
+    # Load data
     val_transformations = get_val_transformations(config)
     train_dataset = get_train_dataset(config, val_transformations)
 
@@ -175,11 +178,14 @@ if __name__ == '__main__':
     if use_wandb:
         wandb.init(project=config.project_name,
                 config=config,
-                name=f'{config.experiment_name}-disent-c{config.consistency.c_dim}--v{config.vspecific.v_dim}-mv{config.train.mask_view_ratio if config.train.mask_view else 0.0}-{seed}')
+                name=f'{config.experiment_name}-rmrdd-c{config.consistency.c_dim}--v{config.vspecific.v_dim}-mv{config.train.mask_view_ratio if config.train.mask_view else 0.0}-{"modal missing" if config.train.mask_view else "full modal"}-{seed}')
     # summary(RMRDD)
     smartprint('model loaded!')
     if LOCAL_RANK == 0 or LOCAL_RANK == -1:
-        val_dataset = get_val_dataset(args=config, transform=val_transformations)
+        if config.train.val_mask_view:
+            val_dataset = get_val_dataset(args=config, transform=val_transformations)
+        else:
+            val_dataset = get_mask_val(config, val_transformations)
         val_dataloader = DataLoader(val_dataset,
                                     batch_size=config.train.batch_size // WORLD_SIZE,
                                     num_workers=config.train.num_workers,
@@ -207,9 +213,9 @@ if __name__ == '__main__':
 
     for epoch in range(config.train.epochs):
         lr = optimizer.param_groups[0]['lr']
-        smartprint("lr:"+str(lr))
+        smartprint("lr:" + str(lr))
 
-        #Train
+        # Train
         if use_ddp:
             train_loader.sampler.set_epoch(epoch)
             model.module.train()
@@ -227,7 +233,7 @@ if __name__ == '__main__':
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-            for k,v in details.items():
+            for k, v in details.items():
                 cur_loss[k].append(v)
 
         show_losses = {k: np.mean(v) for k, v in cur_loss.items()}
@@ -263,13 +269,13 @@ if __name__ == '__main__':
 
             with torch.no_grad():
                 val_loss = []
-                for Xs,_ in val_dataloader:
+                for Xs, _ in val_dataloader:
                     Xs = [x.to(device) for x in Xs]
                     if use_ddp:
                         val_loss.append(model.module.get_loss(Xs)[0].item())
                     else:
                         val_loss.append(model.get_loss(Xs)[0].item())
-                print(f"| Validate loss:{sum(val_loss)/len(val_loss)}")
+                print(f"| Validate loss:{sum(val_loss) / len(val_loss)}")
 
             kmeans_result = valid_by_kmeans(val_dataloader=val_dataloader,
                                             model=model,
@@ -283,7 +289,6 @@ if __name__ == '__main__':
 
         if use_ddp:
             dist.barrier()
-    
 
     final_model_path = os.path.join(result_dir, f"final_model-{seed}.pth")
     if LOCAL_RANK == 0 or LOCAL_RANK == -1:
@@ -291,13 +296,3 @@ if __name__ == '__main__':
             torch.save(model.module.state_dict(), final_model_path)
         else:
             torch.save(model.state_dict(), final_model_path)
-
-
-
-
-
-
-
-
-
-
