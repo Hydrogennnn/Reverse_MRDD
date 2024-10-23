@@ -175,6 +175,8 @@ if __name__ == '__main__':
         specific_encoder_path=config.vspecific.model_path,
         device=device
     )
+    if LOCAL_RANK == 0 or LOCAL_RANK == -1:
+        summary(model)
     if use_wandb:
         wandb.init(project=config.project_name,
                 config=config,
@@ -266,16 +268,6 @@ if __name__ == '__main__':
                 model.module.eval()
             else:
                 model.eval()
-
-            with torch.no_grad():
-                val_loss = []
-                for Xs, _ in val_dataloader:
-                    Xs = [x.to(device) for x in Xs]
-                    if use_ddp:
-                        val_loss.append(model.module.get_loss(Xs)[0].item())
-                    else:
-                        val_loss.append(model.get_loss(Xs)[0].item())
-                print(f"| Validate loss:{sum(val_loss) / len(val_loss)}")
 
             kmeans_result = valid_by_kmeans(val_dataloader=val_dataloader,
                                             model=model,

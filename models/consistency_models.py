@@ -181,7 +181,6 @@ class ConsistencyAE(nn.Module):
         # Masked cross-view distribution modeling.
         Xs_masked = [mask_image(x, mask_patch_size, mask_ratio=mask_ratio) for x in Xs]
         mu, logvar = self.encode(Xs_masked)
-        print('mu:', mu,'logvar', logvar)
         kld_loss = self.con_loss(mu, logvar)
     
         z = self.cont_reparameterize(mu, logvar)  # B x c_dim
