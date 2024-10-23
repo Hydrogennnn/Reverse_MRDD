@@ -113,7 +113,7 @@ if __name__ == '__main__':
     use_wandb = config.wandb
     use_ddp = config.train.use_ddp
     
-    result_dir = os.path.join(config.train.log_dir, f"{config.experiment_name}-specific-v{config.vspecific.v_dim}-mv{config.train.mask_view_ratio if config.train.mask_view else 0.0}-{"modal missing" if config.train.val_mask_view else "full modal"}")
+    result_dir = os.path.join(config.train.log_dir, f"{config.experiment_name}-specific-v{config.vspecific.v_dim}-mv{config.train.mask_view_ratio if config.train.mask_view else 0.0}-{'modal missing' if config.train.val_mask_view else 'full modal'}")
     os.makedirs(result_dir, exist_ok=True)
 
     if use_ddp:
