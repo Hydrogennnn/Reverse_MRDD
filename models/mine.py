@@ -2,13 +2,11 @@ import numpy as np
 import torch
 import torch.nn as nn
 from tqdm import tqdm
-import matplotlib.pyplot as plt
 
 
 def sample_data(mu, var):
     eps = torch.rand_like(mu)
     return mu + eps*var
-n_epoch = 500
 
 
 class MINE(nn.Module):
