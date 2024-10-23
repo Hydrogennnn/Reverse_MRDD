@@ -63,7 +63,6 @@ class RMRDD(nn.Module):
                                                       _mask_view=self.config.train.mask_view,
                                                       mask_view_ratio=self.config.train.mask_view_ratio
                                                       )
-        print('recon_loss:', recon_loss.item(), 'kld_poss:', kld_loss.item())
         return_details['kld_loss'] = kld_loss.item()
         return_details['recon_loss'] = recon_loss.item()
 
@@ -76,12 +75,11 @@ class RMRDD(nn.Module):
             mi_est = self.mi_est[i]
             cur_disent_loss = mi_est.learning_loss(mu_s, torch.exp(0.5*logvar_s), mu_c, torch.exp(0.5*logvar_c))
             tot_disent_loss += cur_disent_loss
-            print('cur_disent:', cur_disent_loss.item())
-        print('tot_disent:', tot_disent_loss.item())
-        disent_loss = 1000.0 / tot_disent_loss
-        return_details['disent_loss'] = disent_loss.item()
+        
+        tot_disent_loss *= 1000.0
+        return_details['disent_loss'] = tot_disent_loss.item()
 
-        return recon_loss+kld_loss+disent_loss, return_details
+        return recon_loss+kld_loss+tot_disent_loss, return_details
 
     def forward(self, Xs):
         con_repr = self.cons_enc(Xs)

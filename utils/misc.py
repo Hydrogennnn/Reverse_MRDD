@@ -99,6 +99,7 @@ def reproducibility_setting(seed):
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
         torch.cuda.manual_seed_all(seed)
+    random.seed(seed)
 
     print('Global seed:', seed)
 
@@ -132,3 +133,4 @@ def get_masked_value(current_epoch, start_epoch=0, end_epoch=100, start_value=0.
     ratio = max(0, min(1, ratio))
     value = (ratio * (end_value - start_value)) + start_value
     return value
+

@@ -16,7 +16,7 @@ from models.independent_VAE import IVAE
 from torch.optim import AdamW, lr_scheduler
 from collections import defaultdict
 from utils.metrics import clustering_by_representation
-
+from utils.misc import reproducibility_setting
 LOCAL_RANK = int(os.getenv('LOCAL_RANK', -1))
 RANK = int(os.getenv('RANK', -1))
 WORLD_SIZE = int(os.getenv('WORLD_SIZE', 1))
@@ -47,19 +47,6 @@ def init_distributed_mode():
     dist.init_process_group(
         backend='nccl' if dist.is_nccl_available() else 'gloo')
 
-def reproducibility_setting(seed):
-    """
-    set the random seed to make sure reproducibility.
-    """
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed(seed)
-        torch.backends.cudnn.deterministic = True
-        torch.backends.cudnn.benchmark = False
-        torch.cuda.manual_seed_all(seed)
-
-    print('Global seed:', seed)
 
 def get_scheduler(args, optimizer):
     """
@@ -271,15 +258,19 @@ if __name__ == '__main__':
         # Process syn
         if use_ddp:
             dist.barrier()
-    
-    final_model_path = os.path.join(result_dir, f"final_model-{config.seed}")
-    if use_ddp:
-        model.module.eval()
-        torch.save(model.module.state_dict(), final_model_path)
-    else:
-        model.eval()
-        torch.save(model.state_dict(), final_model_path)
+
         
+    if LOCAL_RANK == 0 or LOCAL_RANK == -1:
+        final_model_path = os.path.join(result_dir, f"final_model-{config.seed}")
+        if use_ddp:
+            model.module.eval()
+            torch.save(model.module.state_dict(), final_model_path)
+        else:
+            model.eval()
+            torch.save(model.state_dict(), final_model_path)
+
+    if use_ddp:
+        dist.destroy_process_group()
 
 
 
