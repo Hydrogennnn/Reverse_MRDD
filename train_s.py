@@ -271,15 +271,19 @@ if __name__ == '__main__':
         # Process syn
         if use_ddp:
             dist.barrier()
-    
-    final_model_path = os.path.join(result_dir, f"final_model-{config.seed}")
-    if use_ddp:
-        model.module.eval()
-        torch.save(model.module.state_dict(), final_model_path)
-    else:
-        model.eval()
-        torch.save(model.state_dict(), final_model_path)
+
         
+    if LOCAL_RANK == 0 or LOCAL_RANK == -1:
+        final_model_path = os.path.join(result_dir, f"final_model-{config.seed}")
+        if use_ddp:
+            model.module.eval()
+            torch.save(model.module.state_dict(), final_model_path)
+        else:
+            model.eval()
+            torch.save(model.state_dict(), final_model_path)
+
+    if use_ddp:
+        dist.destroy_process_group()
 
 
 
