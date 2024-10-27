@@ -206,8 +206,10 @@ if __name__ == '__main__':
         if use_ddp:
             train_loader.sampler.set_epoch(epoch)
             model.module.train()
+            model.spe_enc.eval()
         else:
             model.train()
+            model.spe_enc.eval()
 
         cur_loss = defaultdict(list)
         for Xs, _ in tqdm(train_loader):
