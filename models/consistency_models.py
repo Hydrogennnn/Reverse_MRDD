@@ -59,7 +59,8 @@ class ConsistencyAE(nn.Module):
                                 resolution=1,
                                 use_attn=False,
                                 attn_resolutions=None,
-                                double_z=False) for _ in range(self.views)])
+                                double_z=False,
+                                dropout=0.5) for _ in range(self.views)])
         # self._encoder = resnet18(pretrained=False, in_channel=self.in_channel, output_layer=6)
     
         self.decoders = nn.ModuleList([Decoder(hidden_dim=self.basic_hidden_dim, 
