@@ -200,13 +200,14 @@ if __name__ == '__main__':
 
     for epoch in range(config.train.epochs):
         lr = optimizer.param_groups[0]['lr']
+        # wandb.log({'lr':lr}, step=epoch)
         smartprint("lr:" + str(lr))
 
         # Train
         if use_ddp:
             train_loader.sampler.set_epoch(epoch)
             model.module.train()
-            model.spe_enc.eval()
+            model.module.spe_enc.eval()
         else:
             model.train()
             model.spe_enc.eval()
@@ -246,8 +247,8 @@ if __name__ == '__main__':
                     os.remove(old_best_model_path)
                 old_best_model_path = best_model_path
 
-        # if scheduler is not None:
-        #     scheduler.step()
+        if scheduler is not None:
+            scheduler.step()
 
         # Evaluation
         if LOCAL_RANK == 0 or LOCAL_RANK == -1:

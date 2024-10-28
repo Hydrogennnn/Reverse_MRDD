@@ -223,25 +223,6 @@ if __name__ == '__main__':
                 else:
                     model.eval()
                     torch.save(model.state_dict(), best_model_path)
-            # Evaluation
-            # val_loss = []
-            # with torch.no_grad():
-            #     for Xs, _ in val_dataloader:
-            #         Xs = [x.to(device) for x in Xs]
-            #         if use_ddp:
-            #             loss, details = model.module.get_loss(Xs, config.train.mask_view, config.train.mask_view_ratio)
-            #         else:
-            #             loss, details = model.get_loss(Xs, config.train.mask_view, config.train.mask_view_ratio)
-
-            #         val_loss.append(loss.item())
-
-            # cur_val_loss = np.mean(val_loss)
-            # smartprint(f'Val loss: {cur_val_loss}')
-            
-
-        # # Update learning rate
-        # if scheduler is not None:
-        #     scheduler.step()
 
 
         # Evaluation of each epoch
