@@ -1,7 +1,8 @@
 from .specificity_models import ViewSpecificAE
 import torch.nn as nn
 import torch
-from utils.misc import mask_view
+from utils.misc import mask_image
+# from utils.misc import mask_view
 class IVAE(nn.Module):
     def __init__(self, args, device = 'cpu'):
         super(IVAE, self).__init__()
@@ -31,9 +32,8 @@ class IVAE(nn.Module):
 
         return outs
 
-    def get_loss(self, Xs, _mask_view, mask_view_ratio):
-        if _mask_view:
-            Xs = mask_view(Xs,mask_view_ratio, self.views)
+    def get_loss(self, Xs, mask_ratio, mask_patch_size):
+        Xs_masked = [mask_image(x, patch_size=mask_patch_size, mask_ratio=mask_ratio) for x in Xs]
         return_details = {}
         loss = 0.
         for i in range(self.views):

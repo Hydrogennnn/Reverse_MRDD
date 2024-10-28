@@ -189,9 +189,9 @@ if __name__ == '__main__':
             Xs = [x.to(device) for x in Xs]
             # assert use_ddp == True
             if use_ddp:
-                loss, details = model.module.get_loss(Xs, config.train.mask_view, config.train.mask_view_ratio)
+                loss, details = model.module.get_loss(Xs, config.train.masked_ratio, config.train.mask_patch_size)
             else:
-                loss, details = model.get_loss(Xs, config.train.mask_view, config.train.mask_view_ratio)
+                loss, details = model.get_loss(Xs, config.train.masked_ratio, config.train.mask_patch_size)
 
             optimizer.zero_grad()
             loss.backward()
@@ -236,6 +236,10 @@ if __name__ == '__main__':
             smartprint(f"[Evaluation {epoch}/{config.train.epochs}]", ', '.join([f'{k}:{v:.4f}' for k, v in kmeans_result.items()]))
             if use_wandb:
                 wandb.log(kmeans_result)
+
+        #学习率衰减
+        if scheduler is not None:
+            scheduler.step()
         # Process syn
         if use_ddp:
             dist.barrier()
