@@ -153,8 +153,9 @@ class ViewSpecificAE(nn.Module):
         return self.decode(z), mu, logvar
     
     
-    def get_loss(self, x, y=None):
-        out, mu, logvar = self(x, y)
+    def get_loss(self, x, mask_x):
+        # masked x as the input of encoder
+        out, mu, logvar = self(mask_x)
 
         recons_loss = self.recons_criterion(out, x)
         

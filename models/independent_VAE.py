@@ -38,7 +38,7 @@ class IVAE(nn.Module):
         loss = 0.
         for i in range(self.views):
             venc = self.__getattr__(f"venc_{i+1}")
-            recon_loss, kld_loss = venc.get_loss(Xs[i])
+            recon_loss, kld_loss = venc.get_loss(Xs[i], Xs_masked[i])
 
             return_details[f"v{i+1}_recon-loss"] = recon_loss.item()
             return_details[f"v{i+1}_kld-loss"] = kld_loss.item()
