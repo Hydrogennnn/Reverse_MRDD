@@ -8,7 +8,9 @@ import json
 import random
 
 if __name__ == "__main__":
-    cfg_file_list = ["./configs/EdgeMNIST.yaml"]
+    cfg_file_list = ["./configs/emnist.yaml",
+                     "./configs/fmnist.yaml",
+                     "./configs/coil-100.yaml"]
 
     # for key in __dataset_dict.keys():
     #     dataclass = __dataset_dict.get(key, None)
