@@ -142,9 +142,9 @@ if __name__ == '__main__':
     # Only evaluation on the first device
     if LOCAL_RANK == 0 or LOCAL_RANK == -1:
         if config.train.val_mask_view:
-            val_dataset = get_val_dataset(args=config, transform=val_transformations)
+            val_dataset = get_mask_val(args=config, transform=val_transformations)
         else:
-            val_dataset = get_mask_val(config, val_transformations)
+            val_dataset = get_val_dataset(config, val_transformations)
         val_dataloader = DataLoader(val_dataset,
                                     batch_size=config.train.batch_size // WORLD_SIZE,
                                     num_workers=config.train.num_workers,
