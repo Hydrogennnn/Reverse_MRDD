@@ -1,6 +1,6 @@
 # general setting.
 views: 2
-seed: 3407
+seed: 8527
 wandb: true
 experiment_name: "fmnist"
 verbose: false

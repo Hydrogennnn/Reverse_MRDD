@@ -27,13 +27,14 @@ if __name__ == "__main__":
         val_set = data_class(root=config.dataset.root, train=False,
                              transform=get_val_transformations(config), views=config.views)
 
-        mask_view_ratio = config.train.mask_view_ratio
+        mask_view_ratio = config.train.val_mask_view_ratio
         # reproduct
         seed = config.seed
         random.seed(seed)
         num_to_select = int(len(val_set) * mask_view_ratio)
         random_indices = random.sample(range(len(val_set)), num_to_select)
         random_views = [random.randint(0, config.views - 1) for _ in range(num_to_select)]
+        print('name', config.dataset.name, 'seed:', seed, 'len:', num_to_select)
         # Write the file
         file_path = os.path.join(res_dir, config.dataset.name + ".json")
         with open(file_path, "w") as file:
