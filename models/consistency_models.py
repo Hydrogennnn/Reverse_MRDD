@@ -59,8 +59,7 @@ class ConsistencyAE(nn.Module):
                                 resolution=1,
                                 use_attn=False,
                                 attn_resolutions=None,
-                                double_z=False,
-                                dropout=0.5) for _ in range(self.views)])
+                                double_z=False) for _ in range(self.views)])
         # self._encoder = resnet18(pretrained=False, in_channel=self.in_channel, output_layer=6)
     
         self.decoders = nn.ModuleList([Decoder(hidden_dim=self.basic_hidden_dim, 
@@ -80,7 +79,7 @@ class ConsistencyAE(nn.Module):
             # self.fc_z = nn.Linear(2048 * self.views, self.c_dim*2)
             
             # self.fc_z = nn.Linear(self.latent_ch * self.block_size ** 2 * self.views, self.c_dim*2)
-            self.to_decoder_input = nn.Linear(self.c_dim + self.v_dim, self.latent_ch * self.block_size **2)
+            self.to_decoder_input = nn.Linear(self.c_dim, self.latent_ch * self.block_size **2)
         # else:
         #     # discrete code.
         #     self.fc_z = nn.Linear(self.latent_ch * self.block_size ** 2, self.c_dim * self.categorical_dim)
@@ -176,7 +175,7 @@ class ConsistencyAE(nn.Module):
         :param Ys: [s_1, s_2, ..., s_m]
         :return: 
         """
-        #Mask view
+        #Random Mask view
         if _mask_view:
             Xs = mask_view(Xs, mask_view_ratio, self.views)
         # Masked cross-view distribution modeling.
@@ -187,8 +186,7 @@ class ConsistencyAE(nn.Module):
         z = self.cont_reparameterize(mu, logvar)  # B x c_dim
         recon_loss = 0.
         for i, x in enumerate(Xs):
-            z_s = torch.cat([z, Ys[i]],dim=1) # B x (c_dim+v_dim)
-            recons = self.decode(z_s, i) # result of reconstruction
+            recons = self.decode(z, i) # result of reconstruction
             sub_recon_loss = F.mse_loss(x, recons, reduction='sum')
             
             recon_loss += sub_recon_loss

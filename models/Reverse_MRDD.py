@@ -4,6 +4,7 @@ import numpy as np
 from .independent_VAE import IVAE
 from .consistency_models import ConsistencyAE
 from .mine import Estimator
+from utils.misc import mask_image
 
 class RMRDD(nn.Module):
     def __init__(self, config, specific_encoder_path = None, device = 'cpu'):
@@ -54,7 +55,6 @@ class RMRDD(nn.Module):
         spe_repr = self.vspecific_features(Xs)
 
         return_details = {}
-        
         # kld loss & reconstruction loss
         recon_loss, kld_loss = self.cons_enc.get_loss(Xs=Xs,
                                                       Ys=spe_repr,
