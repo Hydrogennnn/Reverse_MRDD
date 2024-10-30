@@ -58,7 +58,7 @@ vspecific:
   num_res_blocks: 3
   best_view: 0
   kld_weight: 0.5
-  model_path: './experiments/emnist/emnist-specific-v10-mv0.0/final_model-3407'
+  model_path: './experiments/fmnist/fmnist-specific-v10-m0.7-mv0.3-modal missing/final_model-8527'
 
 disent:
   hidden_size: 100
