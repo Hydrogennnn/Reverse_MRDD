@@ -47,7 +47,7 @@ class RMRDD(nn.Module):
         # self.mi_est = [Estimator(x_dim=config.vspecific.v_dim,
         #                                         y_dim=config.consistency.c_dim,
         #                                         device=device) for _ in range(self.views)]
-        self.mi_est = [CLUBSample(self.v_dim, self.c_dim, config.disent.hidden_size) for _ in range(self.views)]
+        self.mi_est = nn.ModuleList([CLUBSample(self.v_dim, self.c_dim, config.disent.hidden_size) for _ in range(self.views)])
 
     def get_loss(self, Xs):
         # extract specific-views
