@@ -5,7 +5,7 @@ from .independent_VAE import IVAE
 from .consistency_models import ConsistencyAE
 from .mine import Estimator
 from utils.misc import mask_image
-
+from mi_estimators import CLUBSample
 class RMRDD(nn.Module):
     def __init__(self, config, specific_encoder_path = None, device = 'cpu'):
         super(RMRDD, self).__init__()
@@ -44,10 +44,10 @@ class RMRDD(nn.Module):
         )
 
         # mutual information estimation
-        self.mi_est = [Estimator(x_dim=config.vspecific.v_dim,
-                                                y_dim=config.consistency.c_dim,
-                                                device=device) for _ in range(self.views) ]
-
+        # self.mi_est = [Estimator(x_dim=config.vspecific.v_dim,
+        #                                         y_dim=config.consistency.c_dim,
+        #                                         device=device) for _ in range(self.views)]
+        self.mi_est = [CLUBSample(self.v_dim, self.c_dim, config.disent.hidden_size) for _ in range(self.views)]
 
     def get_loss(self, Xs):
         # extract specific-views
@@ -68,12 +68,13 @@ class RMRDD(nn.Module):
 
         # MI loss
         tot_disent_loss = 0.
-        mu_c, logvar_c = self.cons_enc.encode(Xs)
+        # mu_c, logvar_c = self.cons_enc.encode(Xs)
+        C = self.cons_enc.consistency_features(Xs)
 
         for i in range(self.views):
-            mu_s, logvar_s = self.specific_latent_dist(Xs[i], i)
+
             mi_est = self.mi_est[i]
-            cur_disent_loss = mi_est.learning_loss(mu_s, torch.exp(0.5*logvar_s), mu_c, torch.exp(0.5*logvar_c))
+            cur_disent_loss = mi_est.learning_loss(C ,spe_repr[i])
             tot_disent_loss += cur_disent_loss
         
         tot_disent_loss *= 1000.0
