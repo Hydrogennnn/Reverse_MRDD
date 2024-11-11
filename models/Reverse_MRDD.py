@@ -5,7 +5,7 @@ from .independent_VAE import IVAE
 from .consistency_models import ConsistencyAE
 from .mine import Estimator
 from utils.misc import mask_image
-from mi_estimators import CLUBSample
+from .mi_estimators import CLUBSample
 class RMRDD(nn.Module):
     def __init__(self, config, specific_encoder_path = None, device = 'cpu'):
         super(RMRDD, self).__init__()
@@ -44,18 +44,19 @@ class RMRDD(nn.Module):
         )
 
         # mutual information estimation
-        # self.mi_est = [Estimator(x_dim=config.vspecific.v_dim,
-        #                                         y_dim=config.consistency.c_dim,
-        #                                         device=device) for _ in range(self.views)]
-        self.mi_est = nn.ModuleList([CLUBSample(self.v_dim, self.c_dim, config.disent.hidden_size) for _ in range(self.views)])
+        if config.disent.max_mi:
+            self.mi_est = nn.ModuleList([Estimator(x_dim=config.vspecific.v_dim,
+                                                y_dim=config.consistency.c_dim,
+                                                device=self.device) for _ in range(self.views)])
+        else:
+            self.mi_est = nn.ModuleList([CLUBSample(self.v_dim, self.c_dim, config.disent.hidden_size) for _ in range(self.views)])
 
     def get_loss(self, Xs):
         # extract specific-views
         assert len(Xs) == self.views
-        spe_repr = self.vspecific_features(Xs)
-
         return_details = {}
         # kld loss & reconstruction loss
+        spe_repr = self.vspecific_features(Xs)
         recon_loss, kld_loss = self.cons_enc.get_loss(Xs=Xs,
                                                       Ys=spe_repr,
                                                       mask_ratio=self.config.train.masked_ratio,
@@ -68,13 +69,20 @@ class RMRDD(nn.Module):
 
         # MI loss
         tot_disent_loss = 0.
-        # mu_c, logvar_c = self.cons_enc.encode(Xs)
+        mu_c, logvar_c = self.cons_enc.encode(Xs)
         C = self.cons_enc.consistency_features(Xs)
+
 
         for i in range(self.views):
 
             mi_est = self.mi_est[i]
-            cur_disent_loss = mi_est.learning_loss(C ,spe_repr[i])
+            # Max MI- MINE
+            if self.config.disent.max_mi:
+                mu_s, logvar_s = self.specific_latent_dist(Xs[i], i)
+                cur_disent_loss = mi_est.learning_loss(mu_s, torch.exp(0.5 * logvar_s), mu_c, torch.exp(0.5 * logvar_c))
+            else:
+                cur_disent_loss = mi_est.learning_loss(C ,spe_repr[i])
+
             tot_disent_loss += cur_disent_loss
         
         tot_disent_loss *= 1000.0

@@ -113,6 +113,7 @@ _C.train.val_mask_view_ratio = 0.5
 
 # disentagle
 _C.disent = CN()
+_C.disent.max_mi = True
 
 #specific
 _C.vspecific = CN()
