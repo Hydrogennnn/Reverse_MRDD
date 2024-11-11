@@ -286,6 +286,8 @@ if __name__ == '__main__':
                                             model=model,
                                             device=device,
                                             use_ddp=use_ddp)
+            for key in kmeans_result.keys():
+                kmeans_result[key+"(modal missing)"] = kmeans_result.pop(key)
             if use_wandb:
                 wandb.log(kmeans_result)
             # validate on full modal with Gaussian Noise
@@ -295,7 +297,7 @@ if __name__ == '__main__':
                                             use_ddp=use_ddp,
                                             noise=True)
             for key in kmeans_result.keys():
-                key += "with noise"
+                kmeans_result[key+"(with noise)"] = kmeans_result.pop(key)
             if use_wandb:
                 wandb.log(kmeans_result)
 
