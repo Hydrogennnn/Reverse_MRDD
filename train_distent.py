@@ -182,13 +182,13 @@ if __name__ == '__main__':
     smartprint('model loaded!')
     if LOCAL_RANK == 0 or LOCAL_RANK == -1:
         mask_val_dataset = get_mask_val(args=config, transform=val_transformations)
-        # val_dataset = get_val_dataset(config, val_transformations)
-        # val_dataloader = DataLoader(val_dataset,
-        #                             batch_size=config.train.batch_size // WORLD_SIZE,
-        #                             num_workers=config.train.num_workers,
-        #                             shuffle=False,
-        #                             drop_last=False,
-        #                             pin_memory=True)
+        val_dataset = get_val_dataset(config, val_transformations)
+        val_dataloader = DataLoader(val_dataset,
+                                    batch_size=config.train.batch_size // WORLD_SIZE,
+                                    num_workers=config.train.num_workers,
+                                    shuffle=False,
+                                    drop_last=False,
+                                    pin_memory=True)
         mask_val_dataloader = DataLoader(mask_val_dataset,
                                     batch_size=config.train.batch_size // WORLD_SIZE,
                                     num_workers=config.train.num_workers,
@@ -275,12 +275,12 @@ if __name__ == '__main__':
                 model.eval()
 
             # validate on full modal
-            # kmeans_result = valid_by_kmeans(val_dataloader=val_dataloader,
-            #                                 model=model,
-            #                                 device=device,
-            #                                 use_ddp=use_ddp)
-            # if use_wandb:
-            #     wandb.log(kmeans_result, step=epoch)
+            kmeans_result = valid_by_kmeans(val_dataloader=val_dataloader,
+                                            model=model,
+                                            device=device,
+                                            use_ddp=use_ddp)
+            if use_wandb:
+                wandb.log(kmeans_result, step=epoch)
             # validate on modal missing
             kmeans_result = valid_by_kmeans(val_dataloader=mask_val_dataloader,
                                             model=model,
@@ -290,14 +290,14 @@ if __name__ == '__main__':
                 for k, v in kmeans_result.items():
                     wandb.log({k+"(modal missing)": v}, step=epoch)
             # validate on full modal with Gaussian Noise
-            # kmeans_result = valid_by_kmeans(val_dataloader=val_dataloader,
-            #                                 model=model,
-            #                                 device=device,
-            #                                 use_ddp=use_ddp,
-            #                                 noise=True)
-            # if use_wandb:
-            #     for k, v in kmeans_result.items():
-            #         wandb.log({k+"(with noise)": v}, step=epoch)
+            kmeans_result = valid_by_kmeans(val_dataloader=val_dataloader,
+                                            model=model,
+                                            device=device,
+                                            use_ddp=use_ddp,
+                                            noise=True)
+            if use_wandb:
+                for k, v in kmeans_result.items():
+                    wandb.log({k+"(with noise)": v}, step=epoch)
 
             print(f"[Evaluation {epoch}/{config.train.epochs}]",
                   ', '.join([f'{k}:{v:.4f}' for k, v in kmeans_result.items()]))
