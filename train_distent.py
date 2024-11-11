@@ -25,25 +25,33 @@ WORLD_SIZE = int(os.getenv('WORLD_SIZE', 1))
 
 
 @torch.no_grad()
-def valid_by_kmeans(val_dataloader, model, use_ddp, device):
+def valid_by_kmeans(val_dataloader, model, use_ddp, device, noise=False):
     targets = []
     consist_reprs = []
-    vspecific_reprs = []
-    concate_reprs = []
+    vspecific_reprs = defaultdict(list)
+    concate_reprs = defaultdict(list)
     for Xs, target in val_dataloader:
-        Xs = [x.to(device) for x in Xs]
+        if noise:
+            Xs = [(x+torch.randn_like(x)).to(device) for x in Xs]
+        else:
+            Xs = [x.to(device) for x in Xs]
         if use_ddp:
             consist_repr_, vspecific_repr_, concate_repr_ = model.module.all_features(Xs)
         else:
-            consist_repr_, vspecific_repr_, concate_repr_ = model.all_features(Xs)
+            consist_repr_, vspecific_repr_, concate_repr_ = model.all_features(Xs)   # Tensor, list, list
+
         targets.append(target)
         consist_reprs.append(consist_repr_.detach().cpu())
-        vspecific_reprs.append(vspecific_repr_.detach().cpu())
-        concate_reprs.append(concate_repr_.detach().cpu())
+        # vspecific_reprs.append(vspecific_repr_.detach().cpu())
+        # concate_reprs.append(concate_repr_.detach().cpu())
+        for i, (si, c_si) in enumerate(zip(vspecific_repr_, concate_repr_)):
+            vspecific_reprs[f"s{i}"].append(si)
+            concate_reprs[f"c+s{i}"].append(c_si)
+
     targets = torch.concat(targets, dim=-1).numpy()
     consist_reprs = torch.vstack(consist_reprs).detach().cpu().numpy()
-    vspecific_reprs = torch.vstack(vspecific_reprs).detach().cpu().numpy()
-    concate_reprs = torch.vstack(concate_reprs).detach().cpu().numpy()
+    # vspecific_reprs = torch.vstack(vspecific_reprs).detach().cpu().numpy()
+    # concate_reprs = torch.vstack(concate_reprs).detach().cpu().numpy()
     result = {}
     acc, nmi, ari, _, p, fscore = clustering_by_representation(consist_reprs, targets)
     result['consist-acc'] = acc
@@ -52,19 +60,22 @@ def valid_by_kmeans(val_dataloader, model, use_ddp, device):
     result['consist-p'] = p
     result['consist-fscore'] = fscore
 
-    acc, nmi, ari, _, p, fscore = clustering_by_representation(vspecific_reprs, targets)
-    result['vspec-acc'] = acc
-    result['vspec-nmi'] = nmi
-    result['vspec-ari'] = ari
-    result['vspec-p'] = p
-    result['vspec-fscore'] = fscore
-
-    acc, nmi, ari, _, p, fscore = clustering_by_representation(concate_reprs, targets)
-    result['cat-acc'] = acc
-    result['cat-nmi'] = nmi
-    result['cat-ari'] = ari
-    result['cat-p'] = p
-    result['cat-fscore'] = fscore
+    for key, spe_repr in vspecific_reprs.items():
+        spe_repr = torch.vstack(spe_repr).detach().cpu().numpy()
+        acc, nmi, ari, _, p, fscore = clustering_by_representation(spe_repr, targets)
+        result[f'{key}-acc'] = acc
+        result[f'{key}-nmi'] = nmi
+        result[f'{key}-ari'] = ari
+        result[f'{key}-p'] = p
+        result[f'{key}-fscore'] = fscore
+    for key, cat_repr in concate_reprs.items():
+        cat_repr = torch.vstack(cat_repr).detach().cpu().numpy()
+        acc, nmi, ari, _, p, fscore = clustering_by_representation(cat_repr, targets)
+        result[f'{key}-acc'] = acc
+        result[f'{key}-nmi'] = nmi
+        result[f'{key}-ari'] = ari
+        result[f'{key}-p'] = p
+        result[f'{key}-fscore'] = fscore
     return result
 
 
@@ -169,11 +180,15 @@ if __name__ == '__main__':
     summary(model)
     smartprint('model loaded!')
     if LOCAL_RANK == 0 or LOCAL_RANK == -1:
-        if config.train.val_mask_view:
-            val_dataset = get_val_dataset(args=config, transform=val_transformations)
-        else:
-            val_dataset = get_mask_val(config, val_transformations)
+        mask_val_dataset = get_mask_val(args=config, transform=val_transformations)
+        val_dataset = get_val_dataset(config, val_transformations)
         val_dataloader = DataLoader(val_dataset,
+                                    batch_size=config.train.batch_size // WORLD_SIZE,
+                                    num_workers=config.train.num_workers,
+                                    shuffle=False,
+                                    drop_last=False,
+                                    pin_memory=True)
+        mask_val_dataloader = DataLoader(mask_val_dataset,
                                     batch_size=config.train.batch_size // WORLD_SIZE,
                                     num_workers=config.train.num_workers,
                                     shuffle=False,
@@ -258,13 +273,31 @@ if __name__ == '__main__':
             else:
                 model.eval()
 
+            # validate on full modal
             kmeans_result = valid_by_kmeans(val_dataloader=val_dataloader,
                                             model=model,
                                             device=device,
                                             use_ddp=use_ddp)
-
             if use_wandb:
                 wandb.log(kmeans_result)
+            # validate on modal missing
+            kmeans_result = valid_by_kmeans(val_dataloader=mask_val_dataloader,
+                                            model=model,
+                                            device=device,
+                                            use_ddp=use_ddp)
+            if use_wandb:
+                wandb.log(kmeans_result)
+            # validate on full modal with Gaussian Noise
+            kmeans_result = valid_by_kmeans(val_dataloader=val_dataloader,
+                                            model=model,
+                                            device=device,
+                                            use_ddp=use_ddp,
+                                            noise=True)
+            for key in kmeans_result.keys():
+                key += "with noise"
+            if use_wandb:
+                wandb.log(kmeans_result)
+
             print(f"[Evaluation {epoch}/{config.train.epochs}]",
                   ', '.join([f'{k}:{v:.4f}' for k, v in kmeans_result.items()]))
 

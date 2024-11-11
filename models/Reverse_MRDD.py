@@ -88,9 +88,10 @@ class RMRDD(nn.Module):
 
     def all_features(self, Xs):
         C = self.consistency_features(Xs)
-        spe_repr = self.vspecific_features(Xs)
-        V = spe_repr[self.config.vspecific.best_view]
-        return C, V, torch.cat([C, V], dim=-1)
+        spe_repr = self.vspecific_features(Xs)  # list
+        # V = spe_repr[self.config.vspecific.best_view]
+        concat_list = [torch.cat([C, v], dim=-1) for v in range(spe_repr)]  # list
+        return C, spe_repr, concat_list
 
     @torch.no_grad()
     def specific_latent_dist(self, x, v): # distribution of view v
