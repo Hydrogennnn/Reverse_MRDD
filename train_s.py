@@ -100,7 +100,7 @@ if __name__ == '__main__':
     use_wandb = config.wandb
     use_ddp = config.train.use_ddp
     
-    result_dir = os.path.join(config.train.log_dir, f"{config.experiment_name}-specific-v{config.vspecific.v_dim}-m{config.train.masked_ratio}-mv{config.train.mask_view_ratio if config.train.mask_view else 0.0}-{'modal missing' if config.train.val_mask_view else 'full modal'}")
+    result_dir = os.path.join(config.train.log_dir, f"{config.experiment_name}-specific-v{config.vspecific.v_dim}-m{config.train.masked_ratio}-mv{config.train.mask_view_ratio if config.train.mask_view else 0.0}-seed{config.seed}")
     os.makedirs(result_dir, exist_ok=True)
 
     if use_ddp:
@@ -137,7 +137,7 @@ if __name__ == '__main__':
     if use_wandb:
         wandb.init(project=config.project_name,
                    config=config,
-                   name=f'{config.experiment_name}-iVAE-c{config.consistency.c_dim}-m{config.train.masked_ratio}-mv{config.train.mask_view_ratio if config.train.mask_view else 0.0}-{"modal missing" if config.train.mask_view else "full modal"}-{seed}')
+                   name=f'{config.experiment_name}-iVAE-c{config.consistency.c_dim}-m{config.train.masked_ratio}-mv{config.train.mask_view_ratio if config.train.mask_view else 0.0}-{seed}')
 
     # Only evaluation on the first device
     if LOCAL_RANK == 0 or LOCAL_RANK == -1:
