@@ -46,8 +46,8 @@ def valid_by_kmeans(val_dataloader, model, use_ddp, device, noise=False):
         # vspecific_reprs.append(vspecific_repr_.detach().cpu())
         # concate_reprs.append(concate_repr_.detach().cpu())
         for i, (si, c_si) in enumerate(zip(vspecific_repr_, concate_repr_)):
-            vspecific_reprs[f"s{i}"].append(si)
-            concate_reprs[f"c+s{i}"].append(c_si)
+            vspecific_reprs[f"s{i}"].append(si.detach().cpu())
+            concate_reprs[f"c+s{i}"].append(c_si.detach().cpu())
 
     targets = torch.concat(targets, dim=-1).numpy()
     consist_reprs = torch.vstack(consist_reprs).detach().cpu().numpy()
@@ -280,7 +280,7 @@ if __name__ == '__main__':
                                             device=device,
                                             use_ddp=use_ddp)
             if use_wandb:
-                wandb.log(kmeans_result)
+                wandb.log(kmeans_result, step=epoch)
             # validate on modal missing
             kmeans_result = valid_by_kmeans(val_dataloader=mask_val_dataloader,
                                             model=model,
@@ -288,7 +288,7 @@ if __name__ == '__main__':
                                             use_ddp=use_ddp)
             if use_wandb:
                 for k, v in kmeans_result.items():
-                    wandb.log({k+"(modal missing)": v})
+                    wandb.log({k+"(modal missing)": v}, step=epoch)
             # validate on full modal with Gaussian Noise
             kmeans_result = valid_by_kmeans(val_dataloader=val_dataloader,
                                             model=model,
@@ -297,7 +297,7 @@ if __name__ == '__main__':
                                             noise=True)
             if use_wandb:
                 for k, v in kmeans_result.items():
-                    wandb.log({k+"(with noise)": v})
+                    wandb.log({k+"(with noise)": v}, step=epoch)
 
             print(f"[Evaluation {epoch}/{config.train.epochs}]",
                   ', '.join([f'{k}:{v:.4f}' for k, v in kmeans_result.items()]))
