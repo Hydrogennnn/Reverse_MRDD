@@ -279,6 +279,8 @@ if __name__ == '__main__':
                                             model=model,
                                             device=device,
                                             use_ddp=use_ddp)
+            print(f"[Evaluation {epoch}/{config.train.epochs}]",
+                  ', '.join([f'{k}:{v:.4f}' for k, v in kmeans_result.items()]))
             if use_wandb:
                 wandb.log(kmeans_result, step=epoch)
             # validate on modal missing
@@ -286,6 +288,8 @@ if __name__ == '__main__':
                                             model=model,
                                             device=device,
                                             use_ddp=use_ddp)
+            print(f"[Modal missing]",
+                  ', '.join([f'{k}:{v:.4f}' for k, v in kmeans_result.items()]))
             if use_wandb:
                 for k, v in kmeans_result.items():
                     wandb.log({k+"(modal missing)": v}, step=epoch)
@@ -295,12 +299,13 @@ if __name__ == '__main__':
                                             device=device,
                                             use_ddp=use_ddp,
                                             noise=True)
+            print(f"[Data with Noise]",
+                  ', '.join([f'{k}:{v:.4f}' for k, v in kmeans_result.items()]))
             if use_wandb:
                 for k, v in kmeans_result.items():
                     wandb.log({k+"(with noise)": v}, step=epoch)
 
-            print(f"[Evaluation {epoch}/{config.train.epochs}]",
-                  ', '.join([f'{k}:{v:.4f}' for k, v in kmeans_result.items()]))
+
 
         if use_ddp:
             dist.barrier()
