@@ -286,20 +286,18 @@ if __name__ == '__main__':
                                             model=model,
                                             device=device,
                                             use_ddp=use_ddp)
-            for key in kmeans_result.keys():
-                kmeans_result[key+"(modal missing)"] = kmeans_result.pop(key)
             if use_wandb:
-                wandb.log(kmeans_result)
+                for k, v in kmeans_result.items():
+                    wandb.log({k+"(modal missing)": v})
             # validate on full modal with Gaussian Noise
             kmeans_result = valid_by_kmeans(val_dataloader=val_dataloader,
                                             model=model,
                                             device=device,
                                             use_ddp=use_ddp,
                                             noise=True)
-            for key in kmeans_result.keys():
-                kmeans_result[key+"(with noise)"] = kmeans_result.pop(key)
             if use_wandb:
-                wandb.log(kmeans_result)
+                for k, v in kmeans_result.items():
+                    wandb.log({k+"(with noise)": v})
 
             print(f"[Evaluation {epoch}/{config.train.epochs}]",
                   ', '.join([f'{k}:{v:.4f}' for k, v in kmeans_result.items()]))
