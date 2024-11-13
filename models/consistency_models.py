@@ -177,9 +177,9 @@ class ConsistencyAE(nn.Module):
         """
         #Random Mask view
         if _mask_view:
-            Xs = mask_view(Xs, mask_view_ratio, self.views)
+            Xs_mv = mask_view(Xs, mask_view_ratio, self.views)
         # Masked cross-view distribution modeling.
-        Xs_masked = [mask_image(x, mask_patch_size, mask_ratio=mask_ratio) for x in Xs]
+        Xs_masked = [mask_image(x, mask_patch_size, mask_ratio=mask_ratio) for x in Xs_mv]
         mu, logvar = self.encode(Xs_masked)
         kld_loss = self.con_loss(mu, logvar)
     
