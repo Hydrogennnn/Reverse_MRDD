@@ -32,7 +32,7 @@ def valid_by_kmeans(val_dataloader, model, use_ddp, device, noise=False):
     concate_reprs = defaultdict(list)
     for Xs, target in val_dataloader:
         if noise:
-            Xs = [torch.clip(x+torch.randn_like(x), 0, 255).to(device) for x in Xs]
+            Xs = [torch.clip(x+torch.randn_like(x), 0, 1).to(device) for x in Xs]
         else:
             # print(Xs[0].shape)
             Xs = [x.to(device) for x in Xs]

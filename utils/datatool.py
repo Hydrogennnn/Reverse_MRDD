@@ -778,7 +778,8 @@ if __name__ == '__main__':
     trans = transforms.Compose([
         transforms.ToTensor()])
     dataset = EdgeMNISTDataset(train=False, views=2, transform=trans, root="./MyData")
-    print(dataset[0][0][0].shape)
+    Xs, _ = dataset[0]
+    print(Xs[0])
     # generate_mvc_dataset('/mnt/disk3/data/mvc-10', views=2)
     # generate_mvc_dataset('/mnt/disk3/data/mvc-10', views=3)
     # generate_mvc_dataset('/mnt/disk3/data/mvc-10', views=4)
