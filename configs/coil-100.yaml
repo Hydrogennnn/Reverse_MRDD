@@ -13,7 +13,7 @@ backbone:
 dataset:
   name: 'coil-100'
   root: 'MyData'
-  class_num: 10
+  class_num: 100
 train:
   epochs: 200
   # 64, 128, 512, 1024
