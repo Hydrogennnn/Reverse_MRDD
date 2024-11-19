@@ -19,7 +19,8 @@ from models.Reverse_MRDD import RMRDD
 from sklearn import metrics
 from utils.datatool import (get_val_transformations,
                             add_sp_noise,
-                            get_mask_train_dataset)
+                            get_mask_train_dataset,
+                            get_train_dataset)
 
 
 
@@ -130,8 +131,16 @@ def main():
     device = torch.device(f'cuda:{config.train.devices[0]}')
 
     val_transformations = get_val_transformations(config)
+    train_set = get_train_dataset(config, val_transformations)
+    train_dataloader = DataLoader(train_set,
+                                num_workers=config.train.num_workers,
+                                batch_size=config.train.batch_size,
+                                sampler=None,
+                                shuffle=False,
+                                pin_memory=True,
+                                drop_last=False)
     mask_train_set = get_mask_train_dataset(config, val_transformations)
-    val_dataloader = DataLoader(mask_train_set,
+    mask_train_dataloader = DataLoader(mask_train_set,
                                 num_workers=config.train.num_workers,
                                 batch_size=config.train.batch_size,
                                 sampler=None,
@@ -157,9 +166,8 @@ def main():
     print(f'Use: {device}')
 
     model.eval()
-    consistency, vspecific, concate, labels = extract_features(val_dataloader, model, device)
-
-    print("Evaluation on full modal")
+    print("[Evaluation on full modal]")
+    consistency, vspecific, concate, labels = extract_features(train_dataloader, model, device)
     print('eval on consist...')
     report(run_times, n_clusters, need_classification, labels, consistency.numpy())
 
@@ -171,6 +179,31 @@ def main():
         print(f'eval on {key}...')
         report(run_times, n_clusters, need_classification, labels, concate[key])
 
+    print("[Evaluation on modal missing]")
+    consistency, vspecific, concate, labels = extract_features(mask_train_dataloader, model, device)
+    print('eval on consist...')
+    report(run_times, n_clusters, need_classification, labels, consistency.numpy())
+
+    for key in vspecific:
+        print(f'eval on {key}...')
+        report(run_times, n_clusters, need_classification, labels, vspecific[key])
+
+    for key in concate:
+        print(f'eval on {key}...')
+        report(run_times, n_clusters, need_classification, labels, concate[key])
+
+    print("[Evaluation on Salt-Pepper noise]")
+    consistency, vspecific, concate, labels = extract_features(train_dataloader, model, device, noise_prob=config.eval.noise_prob)
+    print('eval on consist...')
+    report(run_times, n_clusters, need_classification, labels, consistency.numpy())
+
+    for key in vspecific:
+        print(f'eval on {key}...')
+        report(run_times, n_clusters, need_classification, labels, vspecific[key])
+
+    for key in concate:
+        print(f'eval on {key}...')
+        report(run_times, n_clusters, need_classification, labels, concate[key])
         # vspecs1 = []
         # vspecs2 = []
         # if config.views == 3:

@@ -69,6 +69,6 @@ valid_augmentation:
   crop_size: 64
 
 eval:
-  noise_prob: 0.5
+  noise_prob: 0.25
   model_path: ''
   modal_missing_ratio: 0.5
