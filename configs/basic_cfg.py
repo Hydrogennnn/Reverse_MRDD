@@ -120,6 +120,7 @@ _C.vspecific = CN()
 # evaluation.
 _C.eval = CN()
 _C.eval.model_path = './mrdd-weights/emnist.pth'
+_C.eval.noise_prob = 0.5
 _C.set_new_allowed(is_new_allowed=True)
 
 

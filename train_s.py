@@ -9,7 +9,8 @@ import numpy as np
 from utils.datatool import (get_val_transformations,
                             get_train_dataset,
                             get_val_dataset,
-                            get_mask_val)
+                            get_mask_val,
+                            add_sp_noise)
 from torch.utils.data.distributed import DistributedSampler
 from torch.utils.data import DataLoader
 from models.independent_VAE import IVAE
@@ -66,11 +67,14 @@ def get_scheduler(args, optimizer):
     return scheduler
 
 @torch.no_grad()
-def valid_by_kmeans(val_dataloader, model, use_ddp, device):
+def valid_by_kmeans(val_dataloader, model, use_ddp, device, noise_prob=None):
     _repr = defaultdict(list)
     targets = []
     for Xs, target in val_dataloader:
-        Xs = [x.to(device) for x in Xs]
+        if noise_prob:
+            Xs = [add_sp_noise(x, noise_prob).to(device) for x in Xs]
+        else:
+            Xs = [x.to(device) for x in Xs]
         if use_ddp:
             spe_repr = model.module.vspecific_features(Xs)
         else:
@@ -141,10 +145,14 @@ if __name__ == '__main__':
 
     # Only evaluation on the first device
     if LOCAL_RANK == 0 or LOCAL_RANK == -1:
-        if config.train.val_mask_view:
-            val_dataset = get_mask_val(args=config, transform=val_transformations)
-        else:
-            val_dataset = get_val_dataset(config, val_transformations)
+        mask_val_dataset = get_mask_val(args=config, transform=val_transformations)
+        mask_val_dataloader = DataLoader(mask_val_dataset,
+                                    batch_size=config.train.batch_size // WORLD_SIZE,
+                                    num_workers=config.train.num_workers,
+                                    shuffle=False,
+                                    drop_last=False,
+                                    pin_memory=True)
+        val_dataset = get_val_dataset(config, val_transformations)
         val_dataloader = DataLoader(val_dataset,
                                     batch_size=config.train.batch_size // WORLD_SIZE,
                                     num_workers=config.train.num_workers,
@@ -224,18 +232,43 @@ if __name__ == '__main__':
                     model.eval()
                     torch.save(model.state_dict(), best_model_path)
 
-
-        # Evaluation of each epoch
+        # Evaluation
         if LOCAL_RANK == 0 or LOCAL_RANK == -1:
             if use_ddp:
                 model.module.eval()
             else:
                 model.eval()
 
-            kmeans_result = valid_by_kmeans(val_dataloader, model, use_ddp, device)
-            smartprint(f"[Evaluation {epoch}/{config.train.epochs}]", ', '.join([f'{k}:{v:.4f}' for k, v in kmeans_result.items()]))
+            # validate on full modal
+            kmeans_result = valid_by_kmeans(val_dataloader=val_dataloader,
+                                            model=model,
+                                            device=device,
+                                            use_ddp=use_ddp)
+            print(f"[Evaluation {epoch}/{config.train.epochs}]",
+                  ', '.join([f'{k}:{v:.4f}' for k, v in kmeans_result.items()]))
             if use_wandb:
-                wandb.log(kmeans_result)
+                wandb.log(kmeans_result, step=epoch)
+            # validate on modal missing
+            kmeans_result = valid_by_kmeans(val_dataloader=mask_val_dataloader,
+                                            model=model,
+                                            device=device,
+                                            use_ddp=use_ddp)
+            print(f"[Modal missing]",
+                  ', '.join([f'{k}:{v:.4f}' for k, v in kmeans_result.items()]))
+            if use_wandb:
+                for k, v in kmeans_result.items():
+                    wandb.log({k + "(modal missing)": v}, step=epoch)
+            # validate on full modal with Gaussian Noise
+            kmeans_result = valid_by_kmeans(val_dataloader=val_dataloader,
+                                            model=model,
+                                            device=device,
+                                            use_ddp=use_ddp,
+                                            noise=config.eval.noise_prob)
+            print(f"[Data with Noise]",
+                  ', '.join([f'{k}:{v:.4f}' for k, v in kmeans_result.items()]))
+            if use_wandb:
+                for k, v in kmeans_result.items():
+                    wandb.log({k + "(with noise)": v}, step=epoch)
 
         #学习率衰减
         if scheduler is not None:

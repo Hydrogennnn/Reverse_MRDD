@@ -68,3 +68,5 @@ disent:
 valid_augmentation:
   crop_size: 32
 
+eval:
+  noise_prob: 0.5

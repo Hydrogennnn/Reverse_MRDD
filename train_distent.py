@@ -26,14 +26,14 @@ WORLD_SIZE = int(os.getenv('WORLD_SIZE', 1))
 
 
 @torch.no_grad()
-def valid_by_kmeans(val_dataloader, model, use_ddp, device, noise=False):
+def valid_by_kmeans(val_dataloader, model, use_ddp, device, noise_prob=False):
     targets = []
     consist_reprs = []
     vspecific_reprs = defaultdict(list)
     concate_reprs = defaultdict(list)
     for Xs, target in val_dataloader:
-        if noise:
-            Xs = [add_sp_noise(x).to(device) for x in Xs]
+        if noise_prob:
+            Xs = [add_sp_noise(x, noise_prob).to(device) for x in Xs]
         else:
             # print(Xs[0].shape)
             Xs = [x.to(device) for x in Xs]
@@ -299,7 +299,7 @@ if __name__ == '__main__':
                                             model=model,
                                             device=device,
                                             use_ddp=use_ddp,
-                                            noise=True)
+                                            noise=config.eval.noise_prob)
             print(f"[Data with Noise]",
                   ', '.join([f'{k}:{v:.4f}' for k, v in kmeans_result.items()]))
             if use_wandb:
