@@ -263,7 +263,7 @@ if __name__ == '__main__':
                                             model=model,
                                             device=device,
                                             use_ddp=use_ddp,
-                                            noise=config.eval.noise_prob)
+                                            noise_prob=config.eval.noise_prob)
             print(f"[Data with Noise]",
                   ', '.join([f'{k}:{v:.4f}' for k, v in kmeans_result.items()]))
             if use_wandb:
