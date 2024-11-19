@@ -17,7 +17,8 @@ from collections import defaultdict
 from utils.datatool import (get_val_transformations,
                             get_train_dataset,
                             get_val_dataset,
-                            get_mask_val)
+                            get_mask_val,
+                            add_sp_noise)
 from utils.misc import reproducibility_setting
 LOCAL_RANK = int(os.getenv('LOCAL_RANK', -1))
 RANK = int(os.getenv('RANK', -1))
@@ -32,7 +33,7 @@ def valid_by_kmeans(val_dataloader, model, use_ddp, device, noise=False):
     concate_reprs = defaultdict(list)
     for Xs, target in val_dataloader:
         if noise:
-            Xs = [torch.clip(x+torch.randn_like(x), 0, 1).to(device) for x in Xs]
+            Xs = [add_sp_noise(x).to(device) for x in Xs]
         else:
             # print(Xs[0].shape)
             Xs = [x.to(device) for x in Xs]

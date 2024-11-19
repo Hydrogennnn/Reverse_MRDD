@@ -529,7 +529,6 @@ class COIL100Dataset(Dataset):
         views = [np.transpose(self.data[view, index, :], (1, 2, 0))
                  for view in range(self.views)]
         target = self.targets[index]
-
         views = [self.to_pil(v) for v in views]
 
         if self.transform:
@@ -768,6 +767,20 @@ def get_val_dataset(args, transform):
     val_set = data_class(root=args.dataset.root, train=False,
                          transform=transform, views=args.views)
     return val_set
+
+def add_sp_noise(x, noise_prob):
+    """
+    Add Salt-Pepper Noise To Dataset
+    Params x:Tensor(C,W,H)
+    """
+    random_matrix = torch.rand_like(x)
+    salt_mask = random_matrix > 1.0 - noise_prob
+    pepper_mask = random_matrix < noise_prob
+    x[salt_mask] = 1.0
+    x[pepper_mask] = 0.0
+
+    return x
+
 
 
 if __name__ == '__main__':
