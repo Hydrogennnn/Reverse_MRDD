@@ -26,7 +26,7 @@ WORLD_SIZE = int(os.getenv('WORLD_SIZE', 1))
 
 
 @torch.no_grad()
-def valid_by_kmeans(val_dataloader, model, use_ddp, device, noise_prob=False):
+def valid_by_kmeans(val_dataloader, model, use_ddp, device, noise_prob=None):
     targets = []
     consist_reprs = []
     vspecific_reprs = defaultdict(list)

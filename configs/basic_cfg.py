@@ -107,7 +107,7 @@ _C.train.masked_ratio = 0.6
 _C.train.mask_patch_size = 2
 _C.train.mask_view = False
 _C.train.mask_view_ratio = 0.30
-_C.train.val_mask_view_ratio = 0.5
+
 
 
 # disentagle
@@ -121,6 +121,8 @@ _C.vspecific = CN()
 _C.eval = CN()
 _C.eval.model_path = './mrdd-weights/emnist.pth'
 _C.eval.noise_prob = 0.5
+_C.eval.modal_missing_ratio = 0.5
+_C.eval.mv_root = './MaskView'
 _C.set_new_allowed(is_new_allowed=True)
 
 

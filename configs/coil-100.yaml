@@ -15,7 +15,7 @@ dataset:
   root: 'MyData'
   class_num: 10
 train:
-  epochs: 100
+  epochs: 200
   # 64, 128, 512, 1024
   devices: [2]
   batch_size: 64
@@ -70,3 +70,5 @@ valid_augmentation:
 
 eval:
   noise_prob: 0.5
+  model_path: ''
+  modal_missing_ratio: 0.5

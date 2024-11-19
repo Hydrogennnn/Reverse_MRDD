@@ -741,10 +741,27 @@ def get_train_dataset(args, transform):
 
     return train_set
 
+def get_mask_train_dataset(args, transform):
+    file_path = os.path.join(args.eval.mv_root, "train", args.dataset.name + ".json")
+    # Read the file
+    assert os.path.exists(file_path)
+    with open(file_path, "r") as file:
+        data = json.load(file)
+        random_indices, random_views = data['indices'], data['views']
+    data_class = __dataset_dict.get(args.dataset.name, None)
+    if data_class is None:
+        raise ValueError("Dataset name error.")
+    train_set = data_class(root=args.dataset.root, train=True,
+                         transform=transform, views=args.views,
+                         mask_view=True, random_indices=random_indices,
+                         random_view=random_views)
+    return train_set
+
 
 def get_mask_val(args, transform):
     # print(type(valset[0]))
-    file_path = os.path.join("./MaskView", args.dataset.name + ".json")
+    # file_path = os.path.join("./MaskView", args.dataset.name + ".json")
+    file_path = os.path.join(args.eval.mv_root, "test", args.dataset.name + ".json" )
     # Read the file
     assert os.path.exists(file_path)
     with open(file_path, "r") as file:
