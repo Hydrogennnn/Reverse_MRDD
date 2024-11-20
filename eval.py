@@ -169,7 +169,7 @@ def main():
     print("[Evaluation on full modal]")
     consistency, vspecific, concate, labels = extract_features(train_dataloader, model, device)
     print('eval on consist...')
-    report(run_times, n_clusters, need_classification, labels, consistency.numpy())
+    report(run_times, n_clusters, need_classification, labels, consistency)
 
     for key in vspecific:
         print(f'eval on {key}...')
@@ -182,7 +182,7 @@ def main():
     print("[Evaluation on modal missing]")
     consistency, vspecific, concate, labels = extract_features(mask_train_dataloader, model, device)
     print('eval on consist...')
-    report(run_times, n_clusters, need_classification, labels, consistency.numpy())
+    report(run_times, n_clusters, need_classification, labels, consistency)
 
     for key in vspecific:
         print(f'eval on {key}...')
@@ -195,7 +195,7 @@ def main():
     print("[Evaluation on Salt-Pepper noise]")
     consistency, vspecific, concate, labels = extract_features(train_dataloader, model, device, noise_prob=config.eval.noise_prob)
     print('eval on consist...')
-    report(run_times, n_clusters, need_classification, labels, consistency.numpy())
+    report(run_times, n_clusters, need_classification, labels, consistency)
 
     for key in vspecific:
         print(f'eval on {key}...')

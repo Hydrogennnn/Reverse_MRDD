@@ -807,9 +807,14 @@ if __name__ == '__main__':
     # pass
     trans = transforms.Compose([
         transforms.ToTensor()])
-    dataset = EdgeMNISTDataset(train=False, views=2, transform=trans, root="./MyData")
+    dataset = COIL100Dataset(train=False, views=2, transform=trans, root="./MyData")
     Xs, _ = dataset[0]
-    print(Xs[0])
+    Xs = [add_sp_noise(x, 0.15) for x in Xs]
+    to_pil_img = transforms.ToPILImage()
+    img = [to_pil_img(x) for x in Xs]
+    for x in img:
+        x.show()
+
     # generate_mvc_dataset('/mnt/disk3/data/mvc-10', views=2)
     # generate_mvc_dataset('/mnt/disk3/data/mvc-10', views=3)
     # generate_mvc_dataset('/mnt/disk3/data/mvc-10', views=4)
