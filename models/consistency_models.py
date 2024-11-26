@@ -11,6 +11,10 @@ import torch.nn.functional as F
 from .autoencoders import Encoder, Decoder
 from .resnet import resnet18, resnet34, resnet50
 from utils.misc import mask_image
+from .moe import Moe
+
+
+
 
 class ConsistencyAE(nn.Module):
 
@@ -62,16 +66,18 @@ class ConsistencyAE(nn.Module):
                                 double_z=False) for _ in range(self.views)])
         # self._encoder = resnet18(pretrained=False, in_channel=self.in_channel, output_layer=6)
     
-        self.decoders = nn.ModuleList([Decoder(hidden_dim=self.basic_hidden_dim, 
-                                out_channels=self.in_channel, 
-                                in_channels=self.latent_ch, 
-                                z_channels=self.latent_ch, 
-                                ch_mult=self.ch_mult,
-                                num_res_blocks=self.num_res_blocks, 
-                                resolution=1, 
-                                use_attn=False, 
-                                attn_resolutions=None,
-                                double_z=False) for _ in range(self.views)])
+        # self.decoders = nn.ModuleList([Decoder(hidden_dim=self.basic_hidden_dim,
+        #                         out_channels=self.in_channel,
+        #                         in_channels=self.latent_ch,
+        #                         z_channels=self.latent_ch,
+        #                         ch_mult=self.ch_mult,
+        #                         num_res_blocks=self.num_res_blocks,
+        #                         resolution=1,
+        #                         use_attn=False,
+        #                         attn_resolutions=None,
+        #                         double_z=False) for _ in range(self.views)])
+
+        self.moe = Moe(num_experts=self.views, input_dim=(self.latent_ch * self.block_size **2), output_dim=2*self.c_dim)
         
         if self.continous:
             # continous code.
@@ -144,20 +150,16 @@ class ConsistencyAE(nn.Module):
         for i, x in enumerate(Xs):
             latent = self._encoder[i](x) # z x 78 x 78
             latent = torch.flatten(latent, start_dim=1) # z x 554
-            expert_output.append(self.experts[i](latent)) #[(b,2c)....]
+            # expert_output.append(self.experts[i](latent)) #[(b,2c)....]
             latents.append(latent)
         # Multi-modal Fusion
-        latent = torch.cat(latents, dim=-1) #(b, 512*m)
-        
-        # Mixture of Experts
-        gate_score = F.softmax(self.gates(latent), dim=-1) #(b, m)
-        experts_output = torch.stack(expert_output, dim=1) #(b,m,2c)
-        output = torch.bmm(gate_score.unsqueeze(1), experts_output).squeeze(1)  # (Batch_size, 2)
-
-        assert self.continous
-        if self.continous:
-            mu, logvar = torch.split(output, self.c_dim, dim=1)
-            return mu, logvar
+        latents = torch.cat(latents, dim=1) #(b, 512*m)
+        # print('latent shape', latents.shape)
+        batch_size = latents.shape[0]
+        latents = latents.view(batch_size, self.views, self.latent_ch * self.block_size **2)
+        output = self.moe(latents)
+        mu, logvar = torch.split(output, self.c_dim, dim=1)
+        return mu, logvar
 
 
     def decode(self, z, idx):
@@ -169,7 +171,7 @@ class ConsistencyAE(nn.Module):
         
     
     
-    def get_loss(self, Xs, Ys, mask_ratio, mask_patch_size, _mask_view, mask_view_ratio):
+    def get_loss(self, Xs, mask_ratio, mask_patch_size, _mask_view, mask_view_ratio):
         """
         :param Xs: original data
         :param Ys: [s_1, s_2, ..., s_m]
@@ -184,16 +186,16 @@ class ConsistencyAE(nn.Module):
         Xs_masked = [mask_image(x, mask_patch_size, mask_ratio=mask_ratio) for x in Xs_mv]
         mu, logvar = self.encode(Xs_masked)
         kld_loss = self.con_loss(mu, logvar)
-    
-        z = self.cont_reparameterize(mu, logvar)  # B x c_dim
-        recon_loss = 0.
-        for i, x in enumerate(Xs):
-            recons = self.decode(z, i) # result of reconstruction
-            sub_recon_loss = F.mse_loss(x, recons, reduction='sum')
-            
-            recon_loss += sub_recon_loss
+        #
+        # z = self.cont_reparameterize(mu, logvar)  # B x c_dim
+        # recon_loss = 0.
+        # for i, x in enumerate(Xs):
+        #     recons = self.decode(z, i) # result of reconstruction
+        #     sub_recon_loss = F.mse_loss(x, recons, reduction='sum')
+        #
+        #     recon_loss += sub_recon_loss
 
-        return recon_loss, kld_loss
+        return kld_loss
 
         # else:
         #     beta = self.encode(Xs_masked)
@@ -243,9 +245,9 @@ class ConsistencyAE(nn.Module):
 
     
     def consistency_features(self, Xs):
-        if self.continous:
-            mu, logvar = self.encode(Xs)
-            z = self.cont_reparameterize(mu, logvar)
+
+        mu, logvar = self.encode(Xs)
+        z = self.cont_reparameterize(mu, logvar)
         return z
         # zs = []
         # for x in Xs:

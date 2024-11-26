@@ -806,6 +806,7 @@ if __name__ == '__main__':
     # print(dataset[0])
     # pass
     trans = transforms.Compose([
+        transforms.Resize((32,32)),
         transforms.ToTensor()])
     dataset = COIL100Dataset(train=False, views=2, transform=trans, root="./MyData")
     Xs, _ = dataset[0]

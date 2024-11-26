@@ -11,7 +11,7 @@ class IVAE(nn.Module):
         self.views = args.views
         # m unimodal vae
         for i in range(self.args.views):
-            self.__setattr__(f"venc_{i + 1}", ViewSpecificAE(c_enable=False,
+            self.__setattr__(f"venc_{i + 1}", ViewSpecificAE(c_enable=True,
                                                              v_dim=self.args.vspecific.v_dim,
                                                              latent_ch=self.args.vspecific.latent_ch,
                                                              num_res_blocks=self.args.vspecific.num_res_blocks,
@@ -32,13 +32,12 @@ class IVAE(nn.Module):
 
         return outs
 
-    def get_loss(self, Xs, mask_ratio, mask_patch_size):
-        Xs_masked = [mask_image(x, patch_size=mask_patch_size, mask_ratio=mask_ratio) for x in Xs]
+    def get_loss(self, Xs, C):
         return_details = {}
         loss = 0.
         for i in range(self.views):
             venc = self.__getattr__(f"venc_{i+1}")
-            recon_loss, kld_loss = venc.get_loss(Xs[i], Xs_masked[i])
+            recon_loss, kld_loss = venc.get_loss(Xs[i], C)
 
             return_details[f"v{i+1}_recon-loss"] = recon_loss.item()
             return_details[f"v{i+1}_kld-loss"] = kld_loss.item()
@@ -47,7 +46,6 @@ class IVAE(nn.Module):
             return_details[f"v{i+1}_total-loss"] = loss.item()
         return loss, return_details
 
-    @torch.no_grad()
     def vspecific_features(self, Xs, best_view=False):
         vspecific_features = []
         for i in range(self.views):

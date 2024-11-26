@@ -10,7 +10,7 @@ from torch.utils.data.distributed import DistributedSampler
 from torchinfo import summary
 from torch.optim import AdamW, lr_scheduler
 from configs.basic_cfg import get_cfg
-from models.Reverse_MRDD import RMRDD
+from models.MergeMRDD import MMRDD
 import wandb
 from utils.metrics import clustering_by_representation
 from collections import defaultdict
@@ -168,9 +168,8 @@ if __name__ == '__main__':
                               drop_last=True)
 
     # Load model
-    model = RMRDD(
+    model = MMRDD(
         config=config,
-        specific_encoder_path=config.vspecific.model_path,
         device=device
     )
     if LOCAL_RANK == 0 or LOCAL_RANK == -1:

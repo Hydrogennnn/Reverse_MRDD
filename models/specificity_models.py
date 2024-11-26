@@ -147,15 +147,16 @@ class ViewSpecificAE(nn.Module):
         mu, logvar = self.encode(x)
         
         z = self.reparameterize(mu, logvar)
+
         if y is not None:
             z = torch.cat([z, y], dim=1)
             
         return self.decode(z), mu, logvar
     
     
-    def get_loss(self, x, mask_x):
+    def get_loss(self, x, y):
         # masked x as the input of encoder
-        out, mu, logvar = self(mask_x)
+        out, mu, logvar = self(x, y)
 
         recons_loss = self.recons_criterion(out, x)
         
