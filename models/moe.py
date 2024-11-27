@@ -9,31 +9,30 @@ class Moe(nn.Module):
         self.num_experts = num_experts
         self.input_dim = input_dim
         self.output_dim = output_dim
-
-        self.hidden_dim = (input_dim+input_dim) * 2 //3
+        self.hidden_dim = (input_dim+output_dim) * 2 //3
 
         self.experts = nn.ModuleList([
                 nn.Sequential(
                 nn.Linear(self.input_dim, self.hidden_dim),
                 nn.ReLU(),
-                nn.Linear(self.hidden_dim, self.input_dim)
+                nn.Linear(self.hidden_dim, self.output_dim)
             ) for _ in range(self.num_experts)
         ])
-
-        self.output_layer = nn.Linear(self.num_experts * self.input_dim, self.output_dim)
-        self.phi = nn.Parameter(torch.randn(input_dim, num_experts, self.hidden_dim))
+        # slots = output_dim
+        self.phi = nn.Parameter(torch.randn(input_dim, num_experts, self.output_dim))
 
     def soft_moe_layer(self, x):
-        logits = torch.einsum('bmd,dnp->bmnp', x, self.phi)
+        logits = torch.einsum('md,dnp->mnp', x, self.phi)
         # print('log:', logits.shape)
         D = F.softmax(logits, dim=1)  # Dispatch weights
-        C = F.softmax(F.softmax(logits, dim=2), dim=3)  # Combine weights
-        Xs = torch.einsum('bmd,bmnp->bnpd', x, D)  # Weighted input slots
+        C = F.softmax(logits.view(logits.shape[0], -1), dim=-1)  # Combine weights
+        C = C.view_as(logits)
+        Xs = torch.einsum('md,mnp->npd', x, D)  # Weighted input slots
         # print('Xs:', Xs.shape)
-        Ys = torch.stack([f_i(Xs[:, i, :, :]) for i, f_i in enumerate(self.experts)], dim=1)  # Expert outputs
-        # print('Ys', Ys.shape)
+        Ys = torch.stack([f_i(Xs[i, :, :]) for i, f_i in enumerate(self.experts)], dim=0)  # Expert outputs
+        print('Ys', Ys.shape)
         # print('C', C.shape)
-        Y = torch.einsum('bnpd,bmnp->bmd', Ys, C)  # Combine expert outputs
+        Y = torch.einsum('npd,mnp->md', Ys, C)  # Combine expert outputs
         # print('Y', Y.shape)
         return Y
 
@@ -42,10 +41,8 @@ class Moe(nn.Module):
 
 
     def forward(self, x):
-        x = self.soft_moe_layer(x)
+        x = self.soft_moe_layer(x) # (batch_size, num_experts, output_dim)
         x = torch.flatten(x,start_dim=1)
-        x = self.output_layer(x)
-        # print('out x', x.shape)
         return x
 
 

@@ -77,11 +77,11 @@ class ConsistencyAE(nn.Module):
         #                         attn_resolutions=None,
         #                         double_z=False) for _ in range(self.views)])
 
-        self.moe = Moe(num_experts=self.views, input_dim=(self.latent_ch * self.block_size **2), output_dim=2*self.c_dim)
+        self.moe = Moe(num_experts=self.views, input_dim=2*c_dim, output_dim=2*self.c_dim)
         
         if self.continous:
             # continous code.
-            self.fc_z = nn.Linear(512 * self.views, self.c_dim*2)
+            self.fc_z = nn.Linear(512*self.views, self.c_dim*2)
             # self.fc_z = nn.Linear(2048 * self.views, self.c_dim*2)
             
             # self.fc_z = nn.Linear(self.latent_ch * self.block_size ** 2 * self.views, self.c_dim*2)
@@ -153,11 +153,10 @@ class ConsistencyAE(nn.Module):
             # expert_output.append(self.experts[i](latent)) #[(b,2c)....]
             latents.append(latent)
         # Multi-modal Fusion
-        latents = torch.cat(latents, dim=1) #(b, 512*m)
+        z = torch.cat(latents, dim=1) #(b, 512*m)
+        z = self.fc_z(z)
         # print('latent shape', latents.shape)
-        batch_size = latents.shape[0]
-        latents = latents.view(batch_size, self.views, self.latent_ch * self.block_size **2)
-        output = self.moe(latents)
+        output = self.moe(z)
         mu, logvar = torch.split(output, self.c_dim, dim=1)
         return mu, logvar
 
