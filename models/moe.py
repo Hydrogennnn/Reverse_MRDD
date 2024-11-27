@@ -43,10 +43,8 @@ class Moe(nn.Module):
                          dim=1)  # [batch_size, num_experts, p, output_dim]
         # Combine expert outputs (shared weights across all samples)
         Y = torch.einsum('bnpd,bmnp->bmd', Ys, C.repeat(1, m, 1, 1))  # [batch_size, m, output_dim]
-        print(Y.shape)
         # Fusion: Aggregate across all samples
         Y_fused = Y.mean(dim=1)  # [batch_size, output_dim]
-        print(Y_fused.shape)
         return Y_fused
 
     def forward(self, x):
