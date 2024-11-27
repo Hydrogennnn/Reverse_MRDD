@@ -21,27 +21,38 @@ class Moe(nn.Module):
         # slots = output_dim
         self.phi = nn.Parameter(torch.randn(input_dim, num_experts, self.output_dim))
 
-    def soft_moe_layer(self, x):
-        logits = torch.einsum('md,dnp->mnp', x, self.phi)
-        # print('log:', logits.shape)
-        D = F.softmax(logits, dim=1)  # Dispatch weights
-        C = F.softmax(logits.view(logits.shape[0], -1), dim=-1)  # Combine weights
-        C = C.view_as(logits)
-        Xs = torch.einsum('md,mnp->npd', x, D)  # Weighted input slots
-        # print('Xs:', Xs.shape)
-        Ys = torch.stack([f_i(Xs[i, :, :]) for i, f_i in enumerate(self.experts)], dim=0)  # Expert outputs
-        # print('C', C.shape)
-        Y = torch.einsum('npd,mnp->md', Ys, C)  # Combine expert outputs
-        # print('Y', Y.shape)
-        return Y
+    def soft_moe_layer(self, X):
+        # X: [batch_size, views, input_dim]
+        m = X.shape[1]
+        batch_size = X.shape[0]
+        # Compute logits for dispatch and combine weights
+        logits = torch.einsum('bmd,dnp->bmnp', X, self.phi)  # [batch_size, m, num_experts, p]
 
+        # Compute dispatch weights (per sample)
+        D = F.softmax(logits, dim=1)  # [batch_size, m, num_experts, p]
 
+        # Compute combine weights (shared across samples)
+        C = F.softmax(logits.view(batch_size, m, -1), dim=-1)
+        C = torch.mean(C, dim=1, keepdim=True)  # [batch_size, 1, n*p]
+        C = C.view(batch_size, 1, self.num_experts, self.hidden_dim) #[batch_size, 1, n, p]
 
-
+        # Dispatch inputs to experts
+        Xs = torch.einsum('bmd,bmnp->bnpd', X, D)  # [batch_size, num_experts, p, input_dim]
+        # Apply each expert function
+        Ys = torch.stack([self.experts[i](Xs[:,i ,:, :]) for i in range(self.num_experts)],
+                         dim=1)  # [batch_size, num_experts, p, output_dim]
+        # Combine expert outputs (shared weights across all samples)
+        Y = torch.einsum('bnpd,bmnp->bmd', Ys, C.repeat(1, m, 1, 1))  # [batch_size, m, output_dim]
+        print(Y.shape)
+        # Fusion: Aggregate across all samples
+        Y_fused = Y.mean(dim=1)  # [batch_size, output_dim]
+        print(Y_fused.shape)
+        return Y_fused
 
     def forward(self, x):
-        x = self.soft_moe_layer(x) # (batch_size, num_experts, output_dim)
-        x = torch.flatten(x,start_dim=1)
+        x = self.soft_moe_layer(x)
+        # print('out x', x.shape)
+
         return x
 
 
