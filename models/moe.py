@@ -30,7 +30,6 @@ class Moe(nn.Module):
         Xs = torch.einsum('md,mnp->npd', x, D)  # Weighted input slots
         # print('Xs:', Xs.shape)
         Ys = torch.stack([f_i(Xs[i, :, :]) for i, f_i in enumerate(self.experts)], dim=0)  # Expert outputs
-        print('Ys', Ys.shape)
         # print('C', C.shape)
         Y = torch.einsum('npd,mnp->md', Ys, C)  # Combine expert outputs
         # print('Y', Y.shape)
