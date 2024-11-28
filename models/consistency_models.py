@@ -77,7 +77,7 @@ class ConsistencyAE(nn.Module):
         #                         attn_resolutions=None,
         #                         double_z=False) for _ in range(self.views)])
 
-        self.moe = Moe(num_experts=self.views, input_dim=(self.latent_ch * self.block_size **2), output_dim=2*self.c_dim)
+        self.moe = Moe(views=self.views, input_dim=(self.latent_ch * self.block_size **2), output_dim=2*self.c_dim)
         
         if self.continous:
             # continous code.
@@ -146,17 +146,11 @@ class ConsistencyAE(nn.Module):
         :return: (Tensor) List of latent codes
         """
         latents = []
-        expert_output = []
         for i, x in enumerate(Xs):
             latent = self._encoder[i](x) # z x 78 x 78
             latent = torch.flatten(latent, start_dim=1) # z x 554
             # expert_output.append(self.experts[i](latent)) #[(b,2c)....]
             latents.append(latent)
-        # Multi-modal Fusion
-        latents = torch.cat(latents, dim=1) #(b, 512*m)
-        # print('latent shape', latents.shape)
-        batch_size = latents.shape[0]
-        latents = latents.view(batch_size, self.views, self.latent_ch * self.block_size **2)
         output = self.moe(latents)
         mu, logvar = torch.split(output, self.c_dim, dim=1)
         return mu, logvar
