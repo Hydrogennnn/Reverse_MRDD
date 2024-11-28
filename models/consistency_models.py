@@ -77,11 +77,12 @@ class ConsistencyAE(nn.Module):
         #                         attn_resolutions=None,
         #                         double_z=False) for _ in range(self.views)])
 
+
         self.moe = Moe(views=self.views, input_dim=(self.latent_ch * self.block_size **2), output_dim=2*self.c_dim)
         
         if self.continous:
             # continous code.
-            self.fc_z = nn.Linear(512 * self.views, self.c_dim*2)
+            self.fc_z = nn.Linear(512*self.views, self.c_dim*2)
             # self.fc_z = nn.Linear(2048 * self.views, self.c_dim*2)
             
             # self.fc_z = nn.Linear(self.latent_ch * self.block_size ** 2 * self.views, self.c_dim*2)
