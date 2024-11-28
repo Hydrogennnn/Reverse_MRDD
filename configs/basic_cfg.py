@@ -105,7 +105,7 @@ _C.train.ckpt_path = ""
 _C.train.use_ddp = True
 _C.train.masked_ratio = 0.6
 _C.train.mask_patch_size = 2
-_C.train.mask_view = False
+_C.train.mask_view = True
 _C.train.mask_view_ratio = 0.30
 
 

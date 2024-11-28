@@ -1,7 +1,7 @@
 # general setting.
 views: 3
 seed: 3407
-wandb: false
+wandb: true
 experiment_name: "coil100"
 verbose: false
 note: 'disentangling'
@@ -69,6 +69,6 @@ valid_augmentation:
   crop_size: 64
 
 eval:
-  noise_prob: 0.25
+  noise_prob: 0.1
   model_path: ''
   modal_missing_ratio: 0.5
