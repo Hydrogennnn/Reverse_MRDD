@@ -1,19 +1,21 @@
-import matplotlib.pyplot as plt
+import torch
+import torch.nn as nn
 
-x = [1, 2, 3, 4, 5]
-y = [2, 4, 6, 8, 10]
-plt.scatter(x, y, color='blue', label='Data Points')
+a = torch.tensor([[1, 2],
+                  [3, 4]], dtype=torch.float)
 
-# 添加标题和标签
-plt.title('Scatter Plot of Two Lists')
-plt.xlabel('X Values')
-plt.ylabel('Y Values')
+b = torch.tensor([[3, 5],
+                  [8, 6]], dtype=torch.float)
 
-# 显示图例
-plt.legend()
+loss_fn1 = torch.nn.MSELoss(reduction='none')
+loss1 = loss_fn1(a.float(), b.float())
+print(loss1)  # 输出结果：tensor([[ 4.,  9.],
+#                 [25.,  4.]])
 
-# 存储图像为 PNG 格式
-plt.savefig('scatter_plot.png')
+loss_fn2 = torch.nn.MSELoss(reduction='sum')
+loss2 = loss_fn2(a.float(), b.float())
+print(loss2)  # 输出结果：tensor(42.)
 
-# 显示图像
-plt.show()
+loss_fn3 = torch.nn.MSELoss(reduction='mean')
+loss3 = loss_fn3(a.float(), b.float())
+print(loss3)  # 输出结果：tensor(10.5000)
